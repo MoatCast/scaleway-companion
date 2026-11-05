@@ -3,14 +3,16 @@
 import Foundation
 
 enum LoginFailure: Error, LocalizedError, Equatable {
-    case invalidCallback, invalidToken, invalidResponse, rejected(Int), mismatchedSession, expired
+    case invalidCallback, invalidToken, invalidResponse, rejected(Int), mismatchedSession, expired, timedOut, listenerUnavailable
 
     var errorDescription: String? {
         switch self {
+        case .timedOut: "No completed callback after three minutes. Scaleway may have rejected the redirect, or sign-in may be incomplete."
+        case .listenerUnavailable: "The private callback receiver could not start on this device."
         case .invalidCallback: "The callback did not match this sign-in attempt. No session was accepted."
         case .invalidToken: "Scaleway returned an unexpected token format. No session was accepted."
         case .invalidResponse: "Scaleway returned an unexpected verification response."
-        case .rejected(let status): "The callback arrived, but Scaleway could not verify API access (HTTP \(status)). This can also indicate missing IAM permissions."
+        case .rejected(let status): "The callback arrived, but Scaleway could not verify the session (HTTP \(status)). This can also indicate missing IAM permissions."
         case .mismatchedSession: "The returned session did not match Scaleway’s verification response."
         case .expired: "The session has expired. Start a new sign-in attempt."
         }
@@ -20,13 +22,13 @@ enum LoginFailure: Error, LocalizedError, Equatable {
 struct LoginAttempt {
     static let scheme = "scalewaycompanion"
     let id: UUID
+    let port: UInt16
 
-    init(id: UUID = UUID()) { self.id = id }
+    init(port: UInt16, id: UUID = UUID()) { self.port = port; self.id = id }
 
-    // A per-attempt path correlates the callback. This is an experimental CLI-style
-    // token handoff, not OAuth/PKCE; provider support for this scheme is unconfirmed.
+    // The nonce correlates a single attempt; this is not an OAuth/PKCE flow.
     var callbackURL: URL {
-        URL(string: "\(Self.scheme)://login/callback/\(id.uuidString.lowercased())")!
+        URL(string: "http://localhost:\(port)/\(id.uuidString.lowercased())/callback")!
     }
 
     var authorizationURL: URL {
@@ -38,20 +40,16 @@ struct LoginAttempt {
     func decodeCallback(_ url: URL) throws -> SessionEnvelope {
         guard url.absoluteString.utf8.count <= 32_768,
               let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              parts.scheme == Self.scheme, parts.host == "login",
-              parts.path == callbackURL.path, parts.user == nil, parts.password == nil,
-              parts.port == nil, parts.fragment == nil else { throw LoginFailure.invalidCallback }
+              parts.scheme == "http", parts.host == "localhost",
+              parts.percentEncodedPath == callbackURL.path, parts.user == nil, parts.password == nil,
+              parts.port == Int(port), parts.fragment == nil else { throw LoginFailure.invalidCallback }
         let tokens = (parts.queryItems ?? []).filter { $0.name == "token" }
-        guard tokens.count == 1, let encoded = tokens.first?.value,
+        guard tokens.count == 1, parts.queryItems?.count == 1, let encoded = tokens.first?.value,
               let data = Data(base64Encoded: encoded),
               let envelope = try? JSONDecoder().decode(SessionEnvelope.self, from: data) else {
             throw LoginFailure.invalidToken
         }
-        // Do not allow callback-controlled headers or URL path components.
-        guard !envelope.token.isEmpty, envelope.token.utf8.count <= 16_384,
-              envelope.token.unicodeScalars.allSatisfy({ CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.").contains($0) }),
-              UUID(uuidString: envelope.jwt.jti) != nil,
-              UUID(uuidString: envelope.jwt.audienceId) != nil else { throw LoginFailure.invalidToken }
+        try envelope.validate()
         return envelope
     }
 }
@@ -63,6 +61,13 @@ struct SessionEnvelope: Decodable {
     }
     let token: String
     let jwt: Metadata
+    func validate() throws {
+        guard !token.isEmpty, token.utf8.count <= 16_384,
+              token.utf8.allSatisfy({ (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || [45, 46, 95].contains($0) }),
+              UUID(uuidString: jwt.jti) != nil, UUID(uuidString: jwt.audienceId) != nil else {
+            throw LoginFailure.invalidToken
+        }
+    }
     // Deliberately discard renewToken. This experiment never persists credentials.
 }
 
@@ -104,7 +109,7 @@ final class RejectRedirects: NSObject, URLSessionTaskDelegate {
 }
 
 enum SessionVerifier {
-    static func verify(_ envelope: SessionEnvelope) async throws -> Date {
+    static func verify(_ envelope: SessionEnvelope, transport: CloudAPI.Transport? = nil) async throws -> Date {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpShouldSetCookies = false
         configuration.urlCache = nil
@@ -113,8 +118,17 @@ enum SessionVerifier {
         let session = URLSession(configuration: configuration, delegate: RejectRedirects(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
         let request = try verificationRequest(envelope)
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw LoginFailure.invalidResponse }
+        let data: Data
+        let http: HTTPURLResponse
+        if let transport { (data, http) = try await transport(request) }
+        else {
+            let response: URLResponse
+            (data, response) = try await session.data(for: request)
+            guard let response = response as? HTTPURLResponse else { throw LoginFailure.invalidResponse }
+            http = response
+        }
+        try Task.checkCancellation()
+        guard http.url == request.url, data.count <= 65_536 else { throw LoginFailure.invalidResponse }
         guard http.statusCode == 200 else { throw LoginFailure.rejected(http.statusCode) }
         guard let verification = try? JSONDecoder().decode(SessionVerification.self, from: data) else {
             throw LoginFailure.invalidResponse
@@ -123,11 +137,7 @@ enum SessionVerifier {
     }
 
     static func verificationRequest(_ envelope: SessionEnvelope) throws -> URLRequest {
-        guard UUID(uuidString: envelope.jwt.jti) != nil,
-              !envelope.token.isEmpty,
-              !envelope.token.contains(where: { $0.isWhitespace || $0.isNewline }) else {
-            throw LoginFailure.invalidToken
-        }
+        try envelope.validate()
         let url = URL(string: "https://api.scaleway.com/iam/v1alpha1/jwts/\(envelope.jwt.jti)")!
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.httpMethod = "GET"

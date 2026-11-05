@@ -1,80 +1,68 @@
 // SPDX-License-Identifier: MPL-2.0
-
 import SwiftUI
 
+#if DEBUG
 struct LoginExperimentView: View {
-    @ObservedObject var login: BrowserLogin
-    @Environment(\.dismiss) private var dismiss
+    let organization: String
+    @StateObject private var login = BrowserLogin()
+    @Environment(\.themePalette) private var palette
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Image(systemName: "cloud")
-                        .font(.system(size: 38, weight: .light)).foregroundStyle(Theme.purple)
-                        .frame(width: 84, height: 84)
-                        .glassEffect(.regular.tint(Theme.purple.opacity(0.12)), in: .rect(cornerRadius: 26))
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Your cloud.\nA little closer.").font(.largeTitle.bold())
-                        Text("Sign in on Scaleway’s own website. Your password stays there.")
-                            .font(.body).foregroundStyle(.secondary)
-                    }
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Login experiment", systemImage: "flask").font(.headline)
-                        Text("We’re testing whether Scaleway can return a session to this iPhone app. Mobile callback support is not yet confirmed.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                        Label("No API keys created", systemImage: "key")
-                        Label("Session checked, then discarded", systemImage: "lock.shield")
-                        Label("Dashboard stays in demo mode", systemImage: "square.grid.2x2")
-                    }
-                    .font(.subheadline).padding(20)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 24))
-                    status
-                    if login.busy {
-                        Button("Cancel sign-in", role: .cancel) { login.cancel() }
-                            .buttonStyle(.glass).frame(maxWidth: .infinity)
-                    } else {
-                        Button { login.start() } label: {
-                            Label("Continue with Scaleway", systemImage: "arrow.up.right")
-                                .fontWeight(.semibold).frame(maxWidth: .infinity).frame(minHeight: 42)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .accessibilityIdentifier("startLogin")
-                    }
-                    Text("Unofficial prototype. This experiment checks access with one read-only API request. No credentials are saved on this device. Clearing the result does not sign you out of Scaleway elsewhere.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(24)
+        Form {
+            Section {
+                Text("Sign in on Scaleway’s website using your existing passkey, password or configured MFA. Your password stays on their page.")
+                Text("This unsupported flow may be rejected or changed by Scaleway. No permission-approval step or automatic setup is provided by this experiment.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
-            .background(Theme.canvas)
-            .navigationTitle("Connect account").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { login.cancel(); dismiss() } } }
-            .onDisappear { login.cancel() }
+            Section("Handoff and verification") {
+                Label(login.callbackReceived ? "Callback received on this iPhone" : "Callback not received", systemImage: login.callbackReceived ? "checkmark.circle" : "circle")
+                if let expiration = login.verifiedUntil {
+                    Label("Session identity and expiry verified", systemImage: "checkmark.shield")
+                    Text("Expires \(expiration.formatted(date: .abbreviated, time: .shortened))").font(.footnote).foregroundStyle(.secondary)
+                } else { Label("Session not verified", systemImage: "circle") }
+                status
+            }
+            Section("Read-only API checks") {
+                LabeledContent("Instances · Paris 1", value: login.instances?.description ?? "Not checked")
+                LabeledContent("Current-month consumption", value: login.spending?.description ?? "Not checked")
+                Text("One record per endpoint, using your connected Organization ID. An empty result can verify access; it does not prove access to every project or zone.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section {
+                if login.busy {
+                    Button("Cancel sign-in", role: .cancel) { login.cancel() }
+                } else {
+                    Button("Continue with Scaleway") { login.start(organization: organization) }
+                        .accessibilityIdentifier("startLogin")
+                }
+                if login.phase == .cancelled || login.phase == .timedOut {
+                    Button("The page showed ‘Invalid app to redirect’") { login.reportRedirectRejection() }
+                }
+            }
+            Section {
+                Text("Your existing API-key connection stays active. No keys or policies are created. Temporary session tokens are held only in memory and discarded when the experiment ends. This does not sign you out of Scaleway elsewhere.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
         }
+        .scrollContentBackground(.hidden).background(palette.canvas)
+        .navigationTitle("Browser sign-in experiment").navigationBarTitleDisplayMode(.inline)
+        .onDisappear { login.cancel() }
     }
 
     @ViewBuilder private var status: some View {
         switch login.phase {
-        case .idle:
-            EmptyView()
-        case .opening:
-            HStack { ProgressView(); Text("Waiting for Scaleway sign-in…") }.font(.subheadline)
-        case .verifying:
-            HStack { ProgressView(); Text("Callback received. Checking API access…") }.font(.subheadline)
-        case .verified(let expiration):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Session verified", systemImage: "checkmark.shield.fill").foregroundStyle(.green)
-                Text("Scaleway accepted the session. It expires \(expiration.formatted(date: .abbreviated, time: .shortened)). The token has been discarded; the dashboard still shows sample data.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Button("Clear result") { login.clear() }.font(.footnote)
-            }.accessibilityIdentifier("loginVerified")
-        case .failed(let message):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Sign-in not verified", systemImage: "exclamationmark.circle").foregroundStyle(.orange)
-                Text(message).font(.footnote).foregroundStyle(.secondary)
-            }.accessibilityIdentifier("loginFailed")
-        case .cancelled:
-            Text("Sign-in cancelled. You can try again whenever you’re ready.")
-                .font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("loginCancelled")
+        case .idle: EmptyView()
+        case .opening: HStack { ProgressView(); Text("Waiting for browser sign-in…") }
+        case .verifying: HStack { ProgressView(); Text("Verifying the returned session…") }
+        case .checkingAPI: HStack { ProgressView(); Text("Checking API capabilities…") }
+        case .completed:
+            Text(login.instances == .verified && login.spending == .verified ? "Experiment passed. Both API reads succeeded." : "Session verified; some API access was not verified.")
+                .accessibilityIdentifier("loginVerified")
+        case .failed(let message): Text(message).foregroundStyle(.orange).accessibilityIdentifier("loginFailed")
+        case .cancelled: Text("Sign-in cancelled.").accessibilityIdentifier("loginCancelled")
+        case .timedOut: Text("Timed out without completing verification. A loaded browser page does not verify sign-in.").foregroundStyle(.orange)
+        case .redirectRejected: Text("Redirect rejection reported from the browser page. This callback is not accepted by Scaleway.").foregroundStyle(.orange)
         }
     }
 }
+#endif

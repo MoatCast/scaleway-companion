@@ -7,7 +7,7 @@ struct ScalewayCompanionApp: App {
     var body: some Scene {
         WindowGroup {
             DashboardView()
-                .tint(Theme.purple)
+                .modifier(AppAppearanceModifier())
         }
     }
 }

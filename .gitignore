@@ -6,3 +6,9 @@ xcuserdata/
 .DS_Store
 artifacts/
 
+*.xcresult/
+*.xcarchive/
+.env
+.env.*
+*.p12
+*.mobileprovision

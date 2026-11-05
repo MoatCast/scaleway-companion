@@ -16,7 +16,7 @@ final class LoginProtocolTests: XCTestCase {
     }
 
     func testOfficialOriginAndRoundTripCallback() throws {
-        let attempt = LoginAttempt()
+        let attempt = LoginAttempt(port: 34567)
         let url = URLComponents(url: attempt.authorizationURL, resolvingAgainstBaseURL: false)!
         XCTAssertEqual(url.scheme, "https")
         XCTAssertEqual(url.host, "account.scaleway.com")
@@ -30,22 +30,22 @@ final class LoginProtocolTests: XCTestCase {
     }
 
     func testOldAttemptCannotCompleteNewLogin() throws {
-        let first = LoginAttempt(), second = LoginAttempt()
+        let first = LoginAttempt(port: 34567), second = LoginAttempt(port: 34567)
         XCTAssertThrowsError(try second.decodeCallback(callback(first))) { XCTAssertEqual($0 as? LoginFailure, .invalidCallback) }
     }
 
     func testRejectsWrongOriginAndFragments() throws {
-        let attempt = LoginAttempt()
+        let attempt = LoginAttempt(port: 34567)
         let good = try callback(attempt)
-        for replacement in ["scalewaycompanion://evil", "https://login", "scalewaycompanion://user@login", "scalewaycompanion://login:1234"] {
-            let bad = URL(string: good.absoluteString.replacingOccurrences(of: "scalewaycompanion://login", with: replacement))!
+        for replacement in ["http://evil:34567", "https://localhost:34567", "http://user@localhost:34567", "http://localhost:1234"] {
+            let bad = URL(string: good.absoluteString.replacingOccurrences(of: "http://localhost:34567", with: replacement))!
             XCTAssertThrowsError(try attempt.decodeCallback(bad))
         }
         XCTAssertThrowsError(try attempt.decodeCallback(URL(string: good.absoluteString + "#token=other")!))
     }
 
     func testRejectsMalformedMissingDuplicateAndOversizedTokens() throws {
-        let attempt = LoginAttempt()
+        let attempt = LoginAttempt(port: 34567)
         XCTAssertThrowsError(try attempt.decodeCallback(attempt.callbackURL))
         XCTAssertThrowsError(try attempt.decodeCallback(URL(string: attempt.callbackURL.absoluteString + "?token=not-base64")!))
         var duplicate = URLComponents(url: try callback(attempt), resolvingAgainstBaseURL: false)!
@@ -55,14 +55,14 @@ final class LoginProtocolTests: XCTestCase {
     }
 
     func testRejectsHeaderAndPathInjection() throws {
-        let attempt = LoginAttempt()
+        let attempt = LoginAttempt(port: 34567)
         XCTAssertThrowsError(try attempt.decodeCallback(callback(attempt, token: "secret\r\nX-Test: injected")))
         XCTAssertThrowsError(try attempt.decodeCallback(callback(attempt, id: "../../users")))
         XCTAssertThrowsError(try attempt.decodeCallback(callback(attempt, token: "")))
     }
 
     func testSessionMustMatchServerResponseAndBeUnexpired() throws {
-        let attempt = LoginAttempt()
+        let attempt = LoginAttempt(port: 34567)
         let envelope = try attempt.decodeCallback(callback(attempt))
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let valid = SessionVerification(jti: jti, audienceID: audience, expiresAt: "2030-01-01T00:00:00.123456Z")

@@ -40,9 +40,9 @@ struct Spending {
 
 enum DemoData {
     static let instances: [CloudInstance] = [
-        .init(id: "api", name: "api-prod", project: .production, city: "Paris", zone: "fr-par-1", type: "DEV1-S", cpu: 2, memoryGB: 2, running: true),
-        .init(id: "worker", name: "worker-01", project: .production, city: "Amsterdam", zone: "nl-ams-1", type: "DEV1-M", cpu: 3, memoryGB: 4, running: true),
-        .init(id: "stage", name: "staging", project: .personal, city: "Paris", zone: "fr-par-1", type: "DEV1-S", cpu: 2, memoryGB: 2, running: false)
+        .init(id: "api", name: "api-prod", project: .production, city: "Paris 1", zone: "fr-par-1", type: "DEV1-S", cpu: 2, memoryGB: 2, running: true),
+        .init(id: "worker", name: "worker-01", project: .production, city: "Milan 1", zone: "it-mil-1", type: "DEV1-M", cpu: 3, memoryGB: 4, running: true),
+        .init(id: "stage", name: "staging", project: .personal, city: "Amsterdam 2", zone: "nl-ams-2", type: "DEV1-S", cpu: 2, memoryGB: 2, running: false)
     ]
 }
 

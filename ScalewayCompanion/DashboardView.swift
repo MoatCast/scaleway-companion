@@ -1,285 +1,215 @@
 // SPDX-License-Identifier: MPL-2.0
-
 import SwiftUI
+import Charts
 
-enum Theme {
-    static let purple = Color(red: 0.47, green: 0.33, blue: 0.85)
-    static let canvas = Color(uiColor: .systemGroupedBackground)
-    static let card = Color(uiColor: .secondarySystemGroupedBackground)
-}
-
-struct DashboardView: View {
+struct DemoDashboardView: View {
+    var onConnect: () -> Void = {}
     @State private var tab = 0
     @State private var project = Project.all
     @State private var instances = DemoData.instances
-    @State private var selectedID: String?
-    @State private var showLogin = false
-    @StateObject private var login = BrowserLogin()
-
+    @State private var search = ""
+    @State private var status = ""
+    @State private var zone = ""
+    @State private var filters = false
+    @State private var account = false
+    @Environment(\.themePalette) private var palette
+    @ScaledMetric(relativeTo: .largeTitle) private var amountSize = 40
+    private var projectInstances: [CloudInstance] { instances.filter { project == .all || $0.project == project } }
     private var filtered: [CloudInstance] {
-        instances.filter { project == .all || $0.project == project }
+        projectInstances.filter {
+            (status.isEmpty || ($0.running ? "running" : "stopped") == status) && (zone.isEmpty || $0.zone == zone) &&
+            (search.isEmpty || [$0.name, $0.type, $0.zone].contains { $0.localizedCaseInsensitiveContains(search) })
+        }
     }
-
     var body: some View {
         TabView(selection: $tab) {
-            Tab("Overview", systemImage: "square.grid.2x2", value: 0) {
-                page(title: "Overview") {
-                    spendingCard(showLink: true)
-                    instanceSection
-                }
-            }
-            Tab("Instances", systemImage: "server.rack", value: 1) {
-                page(title: "Instances") {
-                    HStack(spacing: 12) {
-                        statCard("Running", count: filtered.filter(\.running).count, color: .green)
-                        statCard("Stopped", count: filtered.filter { !$0.running }.count, color: .secondary)
-                    }
-                    instanceSection
-                }
-            }
-            Tab("Spending", systemImage: "chart.bar.xaxis", value: 2) {
-                page(title: "Spending") {
-                    spendingCard(showLink: false)
-                    projectSpending
-                    Text("Consumption is an estimate, not a final invoice. Charges can take time to appear.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-            }
+            Tab("Overview", systemImage: "square.grid.2x2.fill", value: 0) { page("Overview", index: 0) }
+            Tab("Instances", systemImage: "server.rack", value: 1) { page("Instances", index: 1) }
+            Tab("Spending", systemImage: "chart.bar.xaxis", value: 2) { page("Spending", index: 2) }
         }
-        .sheet(isPresented: $showLogin) {
-            LoginExperimentView(login: login)
-        }
-        .sheet(isPresented: Binding(get: { selectedID != nil }, set: { if !$0 { selectedID = nil } })) {
-            if let index = instances.firstIndex(where: { $0.id == selectedID }) {
-                InstanceDetailView(instance: $instances[index])
-            }
-        }
+        .sheet(isPresented: $account) { demoAccount }
+        .sheet(isPresented: $filters) { demoFilters }
     }
-
-    private func page<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func page(_ title: String, index: Int) -> some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    HStack {
-                        Text("SCALEWAY COMPANION")
-                            .font(.caption2.weight(.semibold)).tracking(1.5)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("DEMO").font(.caption2.weight(.semibold)).tracking(1)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    projectPicker
-                    content()
-                    Text("Sample data · no cloud resources connected")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityIdentifier("demoNotice")
-                }
-                .padding(.horizontal, 22).padding(.top, 12).padding(.bottom, 28)
+            Group {
+                if index == 1 { content(index).searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search Instances") }
+                else { content(index) }
             }
-            .background {
-                Theme.canvas.overlay(alignment: .topTrailing) {
-                    RadialGradient(colors: [Theme.purple.opacity(0.16), .clear], center: .topTrailing, startRadius: 0, endRadius: 420)
-                }.ignoresSafeArea()
-            }
-            .navigationTitle(title)
+            .navigationTitle(title).navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Text("Cloud Companion · Demo").font(.subheadline).foregroundStyle(.secondary).fixedSize() }.sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Account", systemImage: "person.crop.circle") { showLogin = true }
-                        .accessibilityIdentifier("accountButton")
+                    Button("Account", systemImage: "person.crop.circle") { account = true }.accessibilityIdentifier("accountButton")
                 }
             }
         }
     }
-
-    private var projectPicker: some View {
-        Menu {
-            Picker("Project", selection: $project) {
-                ForEach(Project.allCases) { Text($0.rawValue).tag($0) }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "square.3.layers.3d").foregroundStyle(Theme.purple)
-                Text(project.rawValue).foregroundStyle(.primary)
-                Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-            }
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 16).frame(minHeight: 46)
-            .glassEffect(.regular.interactive())
-        }
-        .accessibilityLabel("Project: \(project.rawValue)")
-        .accessibilityIdentifier("projectPicker")
-    }
-
-    private func spendingCard(showLink: Bool) -> some View {
-        let spending = Spending.sample(for: project)
-        let categories: [(String, Int, Color)] = [
-            ("Compute", spending.compute, Theme.purple),
-            ("Storage", spending.storage, Theme.purple.opacity(0.55)),
-            ("Network", spending.network, Theme.purple.opacity(0.25))
-        ]
-        return VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Spending this month").font(.subheadline)
-                Spacer()
-                Text("OCT 2026").font(.caption2)
-            }.foregroundStyle(.secondary)
-            Text(Spending.euros(spending.total))
-                .font(.system(size: 52, weight: .semibold, design: .rounded))
-                .tracking(-2).minimumScaleFactor(0.6).lineLimit(1)
-                .accessibilityIdentifier("spendingTotal")
-            Text("Estimated, excl. tax · sample billing period")
-                .font(.caption).foregroundStyle(.secondary)
-            GeometryReader { proxy in
-                HStack(spacing: 4) {
-                    ForEach(categories, id: \.0) { item in
-                        Capsule().fill(item.2)
-                            .frame(width: max(0, (proxy.size.width - 8) * Double(item.1) / Double(spending.total)))
-                    }
-                }
-            }.frame(height: 7).padding(.vertical, 5).accessibilityHidden(true)
-            ForEach(categories, id: \.0) { item in
-                HStack(spacing: 9) {
-                    Circle().fill(item.2).frame(width: 7, height: 7)
-                    Text(item.0)
-                    Spacer()
-                    Text(Spending.euros(item.1)).fontWeight(.medium).monospacedDigit()
-                }.font(.subheadline)
-            }
-            if showLink {
-                Divider()
-                Button {
-                    tab = 2
-                } label: {
-                    HStack {
-                        Text("View spending details")
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                    }.font(.subheadline.weight(.semibold)).frame(minHeight: 32)
-                }
-            }
-        }
-        .padding(24).background(Theme.card, in: RoundedRectangle(cornerRadius: 28))
-    }
-
-    private var instanceSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Instances").font(.title3.weight(.semibold))
-                Spacer()
-                Label("\(filtered.filter(\.running).count) running", systemImage: "circle.fill")
-                    .font(.caption.weight(.medium)).foregroundStyle(.green)
-            }
-            Text("All zones · sample status").font(.caption).foregroundStyle(.secondary)
-            VStack(spacing: 0) {
-                ForEach(filtered) { instance in
-                    if instance.id != filtered.first?.id { Divider() }
-                    Button { selectedID = instance.id } label: {
-                        InstanceRow(instance: instance)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("instance-\(instance.id)")
-                }
-            }
-            .padding(.horizontal, 16).background(Theme.card, in: RoundedRectangle(cornerRadius: 24))
-        }
-    }
-
-    private func statCard(_ title: String, count: Int, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(count)").font(.largeTitle.weight(.semibold)).foregroundStyle(color)
-            Text(title).font(.subheadline).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20).background(Theme.card, in: RoundedRectangle(cornerRadius: 24))
-    }
-
-    private var projectSpending: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("By project").font(.title3.weight(.semibold))
-            VStack(spacing: 0) {
-                ForEach([Project.production, .personal].filter { project == .all || $0 == project }) { item in
-                    Button {
-                        project = item
+    private func content(_ index: Int) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack {
+                    Menu {
+                        Picker("Project", selection: $project) { ForEach(Project.allCases) { Text($0.rawValue).tag($0) } }
                     } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "folder").foregroundStyle(Theme.purple)
-                            Text(item.rawValue)
-                            Spacer()
-                            Text(Spending.euros(Spending.sample(for: item).total)).monospacedDigit()
-                        }.font(.subheadline).padding(.vertical, 20).foregroundStyle(.primary)
+                        HStack(spacing: 4) { Text(project.rawValue); Image(systemName: "chevron.down").font(.caption.weight(.semibold)) }
+                            .font(.subheadline.weight(.medium)).frame(minHeight: 44)
+                    }.accessibilityIdentifier("projectPicker")
+                    Spacer()
+                    if index == 1 {
+                        Button("Filters", systemImage: "line.3.horizontal.decrease") { filters = true }.frame(minHeight: 44).modifier(CompactGlassButton())
                     }
-                    if project == .all && item == .production { Divider() }
                 }
-            }.padding(.horizontal, 18).background(Theme.card, in: RoundedRectangle(cornerRadius: 24))
+                if index != 1 { spending(showLink: index == 0) }
+                if index == 0 {
+                    FleetSummary(running: "\(projectInstances.filter(\.running).count)", coverage: "12")
+                    instanceSection(overview: true)
+                } else if index == 1 { instanceSection(overview: false) }
+                else {
+                    if project == .all { history }
+                    categories
+                    projectSpending
+                    Text("Consumption is an estimate, not a final invoice. Charges can take time to appear.").font(.footnote).foregroundStyle(.secondary)
+                }
+                Text("Sample data · no cloud resources connected").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("demoNotice")
+            }.padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
+        }.background(palette.canvas)
+    }
+    private func spending(showLink: Bool) -> some View {
+        let value = Spending.sample(for: project)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack { Text("This month").font(.headline); Spacer(); Text("Nov 2026").font(.subheadline).foregroundStyle(.secondary) }
+            Text(Spending.euros(value.total)).font(.system(size: amountSize, weight: .semibold)).monospacedDigit()
+                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("spendingTotal")
+            Text("Estimated consumption · excl. tax · sample period").font(.footnote).foregroundStyle(.secondary)
+            ConsumptionStrip(amounts: [Decimal(value.compute), Decimal(value.storage), Decimal(value.network)]).padding(.vertical, 4)
+            if showLink {
+                Button { tab = 2 } label: {
+                    HStack { Text("Spending details"); Spacer(); Image(systemName: "chevron.right").font(.footnote) }.frame(minHeight: 44)
+                }
+            }
         }
     }
-}
-
-private struct InstanceRow: View {
-    let instance: CloudInstance
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "server.rack")
-                .foregroundStyle(Theme.purple).frame(width: 40, height: 40)
-                .background(Theme.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-            VStack(alignment: .leading, spacing: 5) {
-                Text(instance.name).font(.subheadline.weight(.semibold))
-                Text("\(instance.type) · \(instance.city)").font(.caption).foregroundStyle(.secondary)
+    private func instanceSection(overview: Bool) -> some View {
+        let values = overview ? Array(projectInstances.prefix(2)) : filtered
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(overview ? "Your Instances" : "\(values.count) Instances").font(.title2.bold())
+                Spacer()
+                if overview { Button("See all") { tab = 1 }.frame(minHeight: 44) }
             }
-            Spacer(minLength: 4)
-            Label(instance.running ? "Running" : "Stopped", systemImage: "circle.fill")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(instance.running ? Color.green : Color.secondary)
-        }.padding(.vertical, 17).frame(minHeight: 76)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+            if values.isEmpty { Text("No matching Instances.").foregroundStyle(.secondary) }
+            ForEach(values) { instance in
+                if let index = instances.firstIndex(where: { $0.id == instance.id }) {
+                    NavigationLink { InstanceDetailView(instance: $instances[index]) } label: {
+                        CloudInstanceRow(name: instance.name, subtitle: "\(instance.type) · \(instance.city)", status: instance.running ? "Running" : "Stopped")
+                    }.buttonStyle(.plain).accessibilityIdentifier("instance-\(instance.id)")
+                    Divider()
+                }
+            }
+        }
+    }
+    private var categories: some View {
+        let value = Spending.sample(for: project)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Where it goes").font(.title2.bold())
+            ForEach([("Compute", value.compute), ("Storage", value.storage), ("Network", value.network)], id: \.0) { item in
+                HStack { Text(item.0); Spacer(); Text(Spending.euros(item.1)).monospacedDigit() }.frame(minHeight: 44)
+                Divider()
+            }
+        }
+    }
+    private var history: some View {
+        let months = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov"]
+        let cents = [1540, 2210, 1860, 2950, 3620, 4280]
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack { Text("Monthly history").font(.headline); Spacer(); Text("EUR").font(.caption).foregroundStyle(.secondary) }
+            Chart(months.indices, id: \.self) { i in
+                BarMark(x: .value("Month", months[i]), y: .value("EUR", Double(cents[i]) / 100))
+                    .foregroundStyle(i == 5 ? palette.accent : palette.accent.opacity(0.25))
+                    .accessibilityLabel(months[i]).accessibilityValue(Spending.euros(cents[i]))
+            }.chartYScale(domain: 0...50).frame(height: 180)
+            Text("November is month-to-date · sample history").font(.caption).foregroundStyle(.secondary)
+        }.padding(16).background(Theme.card, in: RoundedRectangle(cornerRadius: 22))
+    }
+    private var projectSpending: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("By project").font(.title2.bold())
+            ForEach([Project.production, .personal].filter { project == .all || $0 == project }) { item in
+                Button { project = item } label: {
+                    HStack { Text(item.rawValue); Spacer(); Text(Spending.euros(Spending.sample(for: item).total)).monospacedDigit() }.frame(minHeight: 44)
+                }
+            }
+        }
+    }
+    private var demoAccount: some View {
+        NavigationStack {
+            List {
+                Section { Label("Demo mode · sample data", systemImage: "cloud") }
+                Section { NavigationLink { AppearanceView() } label: { Label("Appearance", systemImage: "circle.lefthalf.filled") }.accessibilityIdentifier("appearanceSettings") }
+                Section { Button("Connect account") { account = false; onConnect() }.accessibilityIdentifier("openAPIConnection") }
+                Section { Text("Free and open source · MPL 2.0").font(.footnote).foregroundStyle(.secondary) }
+            }
+            .scrollContentBackground(.hidden).background(palette.canvas).navigationTitle("Account")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { account = false } } }
+        }
+    }
+    private var demoFilters: some View {
+        NavigationStack {
+            Form {
+                Picker("Zone", selection: $zone) { Text("All zones").tag(""); ForEach(CloudAPI.zones, id: \.self) { Text($0).tag($0) } }
+                Picker("Status", selection: $status) { Text("Any status").tag(""); Text("Running").tag("running"); Text("Stopped").tag("stopped") }
+                Button("Reset filters") { zone = ""; status = ""; search = ""; project = .all }
+            }.scrollContentBackground(.hidden).background(palette.canvas).navigationTitle("Filters").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { filters = false } } }
+        }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
     }
 }
 
 struct InstanceDetailView: View {
     @Binding var instance: CloudInstance
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.themePalette) private var palette
     @State private var action: String?
     @State private var result: String?
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section(instance.project.rawValue) {
-                    LabeledContent("Status", value: instance.running ? "Running" : "Stopped")
-                    LabeledContent("Location", value: instance.zone)
-                    LabeledContent("Instance type", value: instance.type)
-                    LabeledContent("Compute", value: "\(instance.cpu) vCPUs · \(instance.memoryGB) GB")
+        List {
+            Section(instance.project.rawValue) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Name").font(.footnote).foregroundStyle(.secondary)
+                    Text(instance.name).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        .accessibilityIdentifier("instanceDetailName")
                 }
-                Section {
-                    if instance.running {
-                        Button("Simulate restart", systemImage: "arrow.clockwise") { action = "restart" }
-                        Button("Simulate stop", systemImage: "stop", role: .destructive) { action = "stop" }
-                    } else {
-                        Button("Simulate start", systemImage: "power") { action = "start" }
-                    }
-                } footer: {
-                    Text("Demo controls only. No cloud resource will be changed.")
-                }
-                if let result { Text(result).font(.footnote).foregroundStyle(.secondary) }
+                LabeledContent("Status", value: instance.running ? "Running" : "Stopped")
+                LabeledContent("Location", value: instance.zone)
+                LabeledContent("Instance type", value: instance.type)
+                LabeledContent("Compute", value: "\(instance.cpu) vCPUs · \(instance.memoryGB) GB")
             }
-            .navigationTitle(instance.name).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .confirmationDialog("Simulate \(action ?? "action") for \(instance.name)?", isPresented: Binding(get: { action != nil }, set: { if !$0 { action = nil } }), titleVisibility: .visible) {
-                if let action {
-                    Button("Simulate \(action)", role: action == "stop" ? .destructive : nil) {
-                        instance.running = action != "stop"
-                        result = "Demo: \(action) completed."
-                        self.action = nil
-                    }
+            Section {
+                if instance.running {
+                    Button("Simulate restart", systemImage: "arrow.clockwise") { action = "restart" }
+                    Button("Simulate stop", systemImage: "stop", role: .destructive) { action = "stop" }
+                } else {
+                    Button("Simulate start", systemImage: "power") { action = "start" }
                 }
-                Button("Cancel", role: .cancel) { action = nil }
-            } message: {
-                Text("This changes sample data on this device only.")
+            } footer: {
+                Text("Demo controls only. No cloud resource will be changed.")
             }
-        }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+            if let result { Text(result).font(.footnote).foregroundStyle(.secondary) }
+        }
+        .scrollContentBackground(.hidden).background(palette.canvas)
+        .navigationTitle(instance.name).navigationBarTitleDisplayMode(.large)
+        .confirmationDialog("Simulate \(action ?? "action") for \(instance.name)?", isPresented: Binding(get: { action != nil }, set: { if !$0 { action = nil } }), titleVisibility: .visible) {
+            if let action {
+                Button("Simulate \(action)", role: action == "stop" ? .destructive : nil) {
+                    instance.running = action != "stop"
+                    result = "Demo: \(action) completed."
+                    self.action = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { action = nil }
+        } message: {
+            Text("This changes sample data on this device only.")
+        }
     }
 }
-
-#Preview { DashboardView() }

@@ -1,85 +1,96 @@
-# Scaleway Companion — native prototype
+# Scaleway Companion
 
-An unofficial iPhone app prototype based on the approved Liquid Glass mockup. SwiftUI, iOS 26+, no third-party dependencies. **All dashboard values are sample data**, even after a successful login experiment.
+A free, open-source, unofficial native iPhone app for checking Scaleway spending and running Instances. Built with SwiftUI for iOS 26+, with no third-party dependencies or app backend. Licensed under [MPL 2.0](LICENSE), with no paid tiers, subscriptions or in-app purchases.
 
-## Product direction — 4 November 2026
+## Features
 
-The app will be fully free and open source, with no paid tiers, subscriptions, or in-app purchases. The source is licensed under the [Mozilla Public License 2.0](LICENSE). Public repository: [MoatCast/scaleway-companion](https://github.com/MoatCast/scaleway-companion).
+- **Overview:** current-month spending, running Instances and project filtering.
+- **Instances:** all 12 configured zones, search, project/zone/status filters and read-only details.
+- **Spending:** six calendar months, monthly selection, category breakdown and separate currencies.
+- **Appearance:** Ocean, Forest, Amber and Graphite themes, plus System, Light and Dark modes. Native navigation and toolbars use Apple's Liquid Glass materials; financial data stays opaque.
+- **Connection options:** browser-assisted setup of a dedicated restricted IAM application key, or manual entry of an existing key.
+- **Demo mode:** fictional account data and clearly labelled simulated controls, separate from live data.
 
-API-key authentication is the chosen connection method. Password/TOTP reverse engineering, hosted credential login, passkeys, and SSO are parked. Scaleway's response supplied by the owner confirms that its console authentication is not intended for third-party use and may change without notice.
+The app is an independent prototype, not affiliated with or endorsed by Scaleway. Instance power controls and hosted push notifications are not implemented.
 
-The next implementation is described in [the API connection design](docs/api-connection-design.md). It is not implemented yet. The browser experiment below remains historical prototype code, not the intended beta login flow.
+## Connect your account
 
-## Open and run
+### Automatic setup
 
-Open `ScalewayCompanion.xcodeproj` in Xcode, select the **ScalewayCompanion** scheme and an iPhone simulator, then Run (⌘R).
+1. Choose **Continue with Scaleway**. If already connected, open **Account → Set up a read-only connection**.
+2. Sign in on Scaleway's website using your configured authentication method.
+3. Choose an Organization and select the projects whose Instances you want to view.
+4. Review the permissions, then choose **Create read-only connection**.
 
-Xcode is installed at `/Applications/Xcode.app`. The system's command-line selection currently points at Command Line Tools. This project can build without changing that selection:
+The app creates a dedicated IAM application, one policy and an application-bound API key. It grants `InstancesReadOnly` only on selected projects and `BillingReadOnly` on the chosen Organization. Billing access is broader than consumption: it also covers other billing information, including invoices and payment-method information.
 
-```sh
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
-  -project ScalewayCompanion.xcodeproj -scheme ScalewayCompanion \
-  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
-  -derivedDataPath .build build CODE_SIGNING_ALLOWED=NO
-```
+Setup verifies the policy scopes, checks for additional inherited policies, and tests the new key before saving it. Existing credentials remain active until the replacement is saved successfully; the previous key is not revoked. Accounts that cannot provision or verify the required access can use manual setup. See [automatic setup and recovery](docs/automatic-setup.md).
 
-For a physical iPhone, select your signing team in Signing & Capabilities and use a unique bundle identifier. No signing account has been configured by this prototype.
+**Browser sign-in is unsupported by Scaleway for third-party clients and can change or stop working without notice.** This is a CLI-style browser handoff, not a registered OAuth/PKCE integration. Passwords, passkeys and MFA remain on Scaleway's actual website. The dashboard uses the restricted application key after setup, not the temporary browser session.
 
-## Try the dashboard
+### Manual setup
 
-- Overview shows sample October 2026 consumption (€42.80) and three Instances.
-- Filter all three tabs by Production (€36.80) or Personal (€6.00).
-- Open an Instance to inspect details and simulate start/stop/restart, with confirmation.
-- Sample actions change memory only and reset when the app restarts.
-- Native tab bars, toolbar controls and the project selector use Liquid Glass. System appearance and Dynamic Type are supported.
+1. [Create a dedicated IAM application and API key](https://www.scaleway.com/en/docs/iam/credentials/create-api-keys/).
+2. Grant `InstancesReadOnly` on the projects you want to view and `BillingReadOnly` at Organization scope. Allow about a minute for policy changes to propagate.
+3. Enter the secret key and Organization UUID in the connection form.
 
-## Login experiment
+Choose **Explore demo** to try the app without credentials.
 
-Tap the account button at the top right, then **Continue with Scaleway**.
+## Credentials and access
 
-1. An ephemeral `ASWebAuthenticationSession` opens `https://account.scaleway.com/authenticate`.
-2. The `redirectToUrl` parameter asks Scaleway to return to `scalewaycompanion://login/callback/<random-attempt-id>`.
-3. If Scaleway accepts this mobile callback, the app checks the URL against the current attempt, decodes the CLI-style base64 token envelope, and rejects malformed or ambiguous input.
-4. A single GET to `https://api.scaleway.com/iam/v1alpha1/jwts/{jti}` uses `X-Session-Token` to check API access. An HTTP 200 is required; the returned session ID, audience and expiry must also match.
-5. The UI reports a verified session, cancellation, timeout or a sanitized failure. Tokens and renewal tokens are never persisted or logged. No API key is created. The dashboard remains in demo mode.
+The saved API key is sent directly to Scaleway over HTTPS. It is stored in device-only Keychain using `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`; it is not synced or sent to an app backend. Authenticated requests refuse redirects.
 
-The experiment does **not** establish that Scaleway supports third-party mobile clients. The official CLI uses a localhost callback. Our custom-scheme callback was rejected in the physical-device test documented below. This does not establish that all mobile integrations are impossible. HTTPS callbacks would require an associated domain and Scaleway approval of the redirect hostname. This is a CLI-style token handoff, **not** a registered OAuth/PKCE integration; do not ship it as production authentication without resolving that support/security contract.
+Temporary browser sessions remain in memory and are discarded after setup, cancellation or expiry. Session and renewal tokens are never saved to Keychain, preferences or logs. An interrupted setup can leave a non-secret recovery record containing resource identifiers, allowing targeted cleanup without storing credentials. Uncertain creation outcomes block duplicate setup until resolved.
 
-**Physical-device result, 1 November 2026:** The user reported “Invalid app to redirect” during real sign-in on the iPhone. Inspection of Scaleway's publicly served [authentication route](https://account.scaleway.com/assets/Authenticate-CdSeTey_.js), [redirect validator](https://account.scaleway.com/assets/common-BsiJprxe.js), and [production configuration](https://account.scaleway.com/assets/account-BUK1yo6N.js) found an allowed-hostname check before callback-token creation. The production allowlist contains `online.net`, `scaleway.com`, `scw.eu`, and `localhost`; the validator matches those domains or their subdomains. Our `scalewaycompanion://login/callback/<attempt>` URL has hostname `login` and fails this check. The current custom-scheme flow is therefore blocked, and moving it to an arbitrary HTTPS domain would not by itself resolve the rejection. No successful app callback or API verification has been established. These public implementation details are dated observations, not a third-party authentication contract. Next steps are to obtain Scaleway's supported integration/redirect requirements or use documented IAM API-key authentication for a separate beta connection flow. No simulator or device tests were run for this diagnosis.
+Disconnect removes the local key and loaded account data. To revoke access everywhere, delete the key or application in Scaleway's IAM console. The dashboard is read only; automatic setup performs the IAM creation and cleanup explicitly approved through the setup screen.
 
-The request to inspect a session can also fail because of IAM permissions. The app distinguishes receipt of a callback from successful API verification. The prototype has a three-minute attempt timeout, can be cancelled, rejects stale attempts, blocks API redirects and discards the token after verification. Clearing the result only clears local UI state; it does not revoke a server-side session or sign out other devices.
+## Understanding the data
 
-### Manual acceptance check
+Spending is estimated consumption, excludes tax and can lag behind usage. Discounts and credits are not deducted; it is not a final invoice. Billing months use UTC. Amounts use decimal arithmetic, remain separated by currency, and totals sum the displayed rounded categories.
 
-- Open the browser and verify that Scaleway's sign-in page loads.
-- Enter credentials **only in that Scaleway browser page**, including MFA if requested.
-- Record whether it returns to the app and whether the result says “Session verified”. Do not capture/share tokens or credential-bearing callback URLs.
-- If Scaleway rejects or drops the callback, record the visible non-sensitive error. Ask Scaleway which iOS callback mechanism is supported for third-party clients.
-- Cancel, retry, and dismiss the sheet during an attempt; no previous attempt should change the new result.
+The dashboard checks all configured Instance zones in batches of three. Project UUIDs identify resources without requiring project-directory access on the saved key. Pull to refresh, or use the refresh control. Failed sections retain their last successful values with stale labels; failed zones and missing months are shown explicitly rather than treated as confirmed zero. Spending and Instance errors are reported separately.
 
-No real account login has been performed by the agent. No cloud resource actions, API-key creation, backend, persisted credentials, IAP or TestFlight upload are included.
+## Build
 
-## Tests
+Requirements: macOS, Xcode with the iOS 26+ SDK, and an iPhone running iOS 26+ for device testing. Open `ScalewayCompanion.xcodeproj` and select the **ScalewayCompanion** scheme. Set your own signing team and unique bundle identifier for a physical device; personal signing configuration is not included.
+
+Compile for iPhone without starting a simulator:
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
   -project ScalewayCompanion.xcodeproj -scheme ScalewayCompanion \
-  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
-  -derivedDataPath .build test CODE_SIGNING_ALLOWED=NO
+  -destination 'generic/platform=iOS' -derivedDataPath .build/device \
+  -jobs 2 build CODE_SIGNING_ALLOWED=NO
 ```
 
-Unit tests cover callback correlation, malformed/duplicate/oversized tokens, header/path injection, session verification, redirect rejection and exact monetary reconciliation. UI tests exercise project filtering, tab navigation, confirmation/cancellation of demo actions and opening/cancelling the browser. Browser tests never enter credentials.
+Run the core tests on macOS without a simulator:
 
-Verified on 1 November 2026 using the **Scaleway Prototype** iPhone 18 Pro simulator (iOS 27.2): all eight unit tests and three UI scenarios passed across the full run and focused dashboard rerun. Testing exposed an Instance-row hit-area issue, fixed with `contentShape(Rectangle())`. The dashboard test now dismisses native confirmation popovers by tapping the visible detail sheet and checks the detail status before and after the sample action. Results are in `.build/FullVerification-20261101.xcresult` (unit/account passes; original dashboard dismissal failure) and `.build/DashboardDismissalVerification.xcresult` (dashboard pass). The authentication browser opened and cancelled successfully, but its captured page content was blank; sign-in-page loading, real credentials, callback delivery and live API access remain unverified.
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test \
+  --scratch-path .build/unit -j 2
+```
 
-## References
+The Swift package covers networking, callback validation, IAM setup/recovery, credentials, dashboard state, billing and appearance preferences. The application remains a native SwiftUI Xcode project. Debug builds also expose a separate browser sign-in diagnostic in connected Account.
 
-- [Scaleway CLI browser login](https://www.scaleway.com/en/docs/scaleway-cli/quickstart/)
-- [Official CLI implementation inspected](https://github.com/scaleway/scaleway-cli/blob/a9e0359ccfb26626b890035457230109b9d7aa4e/internal/namespaces/login/login.go)
-- [Scaleway JWT inspection API](https://www.scaleway.com/en/developers/api/iam/jwts)
-- [Apple custom-scheme authentication callback](https://developer.apple.com/documentation/authenticationservices/aswebauthenticationsession/callback/customscheme(_:))
-- [Apple Liquid Glass guidance](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
+## Verification status
+
+Evidence recorded on **4 November 2026**:
+
+- **65 core tests passed**, covering authentication boundaries, scoped IAM requests, cancellation and recovery, atomic credential replacement, pagination, billing arithmetic, stale/partial data and appearance preferences.
+- **Debug and Release iPhone builds passed.** Four earlier physical-device UI scenarios passed, plus a separate automatic-setup open/return check. Selected native screens were visually reviewed on iPhone.
+- **Manual real-account acceptance:** API-key data matched the console and restored after relaunch. The passkey browser experiment verified its callback, session and both API reads. Full automatic IAM setup subsequently completed on a physical iPhone, and the resulting dashboard data matched the account.
+
+The 65 core tests were rerun successfully on **5 November 2026** before publishing this update. No simulator or device test was run for that publication check.
+
+Live cancellation/recovery, restoration of the automatically provisioned replacement key after relaunch, Keychain deletion, larger text and accessibility overrides remain unverified on device. Password/MFA and SSO were not retested. Core credential-state tests use an in-memory vault. Manual acceptance is not a provider-support guarantee or an independent console audit.
+
+## Implementation notes
+
+- [API connection design](docs/api-connection-design.md)
+- [Automatic setup, permissions and recovery](docs/automatic-setup.md)
+- [Browser sign-in experiment and evidence](docs/browser-sign-in-experiment.md)
+- [Historical rejected custom-scheme experiment](docs/parked-browser-experiment.md)
 
 ## Licence
 
-This project’s original source code is licensed under the [Mozilla Public License 2.0](LICENSE) (SPDX: `MPL-2.0`). Contributions to covered source files are provided under the same licence. This is an independent, unofficial client and is not affiliated with or endorsed by Scaleway. Third-party names and trademarks remain the property of their respective owners.
+Original source code is licensed under the [Mozilla Public License 2.0](LICENSE), SPDX `MPL-2.0`. Contributions to covered files use the same licence. Third-party names and trademarks remain the property of their respective owners.

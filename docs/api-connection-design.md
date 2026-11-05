@@ -1,7 +1,7 @@
 # API connection and free, open-source direction
 
 Date: 4 November 2026
-Status: Proposed implementation design; API-key direction and free/open-source product model selected by the owner.
+Status: Implemented locally on 4 November 2026; physical-device account and Keychain verification pending.
 
 ## Connection flow
 
@@ -13,7 +13,7 @@ Use the secret key as the X-Auth-Token request header, as documented by Scaleway
 
 ## First useful version
 
-Read current-month consumption and list existing Instances, with explicit zone selection and pagination. Determine the exact read-only permission sets from current documentation during implementation. Support separate errors for invalid/revoked credentials, missing permissions, and network failures. A spending-permission error must not hide successfully loaded Instances.
+Read current-month consumption and on-demand six-month history; list existing Instances across all 12 configured zones, with zone/status/search filters and pagination. Retain failed refresh values with explicit stale labels and per-zone coverage. Determine the exact read-only permission sets from current documentation during implementation. Support separate errors for invalid/revoked credentials, missing permissions, and network failures. A spending-permission error must not hide successfully loaded Instances.
 
 Keep sample data behind an explicit demo mode. Never substitute sample amounts for failed live reads. Label consumption as estimated and show currency, period, and refresh time. Do not aggregate different currencies. Disable demo start/stop/restart controls for live resources in this increment; live management is a separate change requiring write permissions.
 
