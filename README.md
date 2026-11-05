@@ -1,5 +1,7 @@
 # Scaleway Companion
 
+[![Core checks](https://github.com/MoatCast/scaleway-companion/actions/workflows/core-tests.yml/badge.svg)](https://github.com/MoatCast/scaleway-companion/actions/workflows/core-tests.yml)
+
 A free, open-source, unofficial native iPhone app for checking Scaleway spending and running Instances. Built with SwiftUI for iOS 26+, with no third-party dependencies or app backend. Licensed under [MPL 2.0](LICENSE), with no paid tiers, subscriptions or in-app purchases.
 
 ## Features
@@ -90,6 +92,10 @@ Live cancellation/recovery, restoration of the automatically provisioned replace
 - [Automatic setup, permissions and recovery](docs/automatic-setup.md)
 - [Browser sign-in experiment and evidence](docs/browser-sign-in-experiment.md)
 - [Historical rejected custom-scheme experiment](docs/parked-browser-experiment.md)
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for bug reports, pull requests and local checks. Report vulnerabilities privately through [the security policy](SECURITY.md), and never include credentials or account data in public issues. GitHub Actions runs macOS core checks without cloud credentials or a simulator; Dependabot proposes updates to pinned workflow actions.
 
 ## Licence
 
