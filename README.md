@@ -95,7 +95,7 @@ Live cancellation/recovery, restoration of the automatically provisioned replace
 
 ## Contributing and security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for bug reports, pull requests and local checks. Report vulnerabilities privately through [the security policy](SECURITY.md), and never include credentials or account data in public issues. GitHub Actions runs macOS core checks without cloud credentials or a simulator; Dependabot proposes updates to pinned workflow actions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for bug reports, pull requests and local checks. Report vulnerabilities privately through [the security policy](SECURITY.md), and never include credentials or account data in public issues. GitHub Actions runs macOS core checks without cloud credentials or a simulator. CodeQL scans the core Swift library on changes and weekly; it does not build or analyze the SwiftUI/UIKit application targets. Dependabot proposes updates to pinned workflow actions.
 
 ## Licence
 

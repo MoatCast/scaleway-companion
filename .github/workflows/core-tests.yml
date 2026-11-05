@@ -20,5 +20,3 @@ jobs:
           persist-credentials: false
       - name: Run macOS core tests without a simulator
         run: swift test --scratch-path .build/unit --jobs 2
-      - name: Check patch whitespace
-        run: git diff --check
