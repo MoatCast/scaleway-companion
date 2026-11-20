@@ -47,6 +47,9 @@ final class DashboardStore: ObservableObject {
     private var generation = UUID()
     private let api: any CloudService
     private let vault: any CredentialVault
+    private let cache: SnapshotCache
+    /// Called after the widget snapshot changes; the app target reloads widget timelines here.
+    var onSnapshotChange: (@MainActor () -> Void)?
     private let now: @Sendable () -> Date
     var organization: String? { credentials?.organization }
     var organizationName: String? { credentials?.organizationName }
@@ -80,8 +83,9 @@ final class DashboardStore: ObservableObject {
             return MonthlyAmount(period: period, amount: amount)
         }
     }
-    init(api: any CloudService = CloudAPI(), vault: any CredentialVault = KeychainCredentials(), now: @escaping @Sendable () -> Date = { Date() }) {
-        self.api = api; self.vault = vault; self.now = now
+    init(api: any CloudService = CloudAPI(), vault: any CredentialVault = KeychainCredentials(), cache: SnapshotCache = .shared,
+         now: @escaping @Sendable () -> Date = { Date() }) {
+        self.api = api; self.vault = vault; self.cache = cache; self.now = now
         selectedPeriod = Self.billingPeriod(now: now())
     }
     nonisolated static func billingPeriod(now: Date = Date()) -> String {
@@ -136,6 +140,7 @@ final class DashboardStore: ObservableObject {
         instances = []; spending = nil; projectID = ""; zone = ""; search = ""; statusFilter = ""
         history = [:]; historyErrors = [:]; historyBusy = false; historyRequested = false
         invoices = nil; invoicesError = nil
+        clearSnapshot()
         successfulZones = []; failedZones = [:]; zoneUpdatedAt = [:]
         refreshedAt = nil; spendingFetchedAt = nil; selectedPeriod = Self.billingPeriod(now: now())
         instanceError = nil; spendingError = nil; connectionError = nil
@@ -197,6 +202,7 @@ final class DashboardStore: ObservableObject {
         }
         if !periods.contains(selectedPeriod) { selectedPeriod = period }
         refreshedAt = stamp; busy = false
+        writeSnapshot()
         if historyRequested { await loadHistory(force: true) }
     }
     func loadHistory(force: Bool = false) async {
@@ -252,6 +258,22 @@ final class DashboardStore: ObservableObject {
         guard let credentials else { throw APIError.invalidCredentials }
         return try await api.invoicePDF(credentials: credentials, id: id)
     }
+    private func writeSnapshot() {
+        guard connected, let credentials, let spending else { return }
+        let totals = BillingSummary.totals(spending.items)
+        let haveInstances = !zoneUpdatedAt.isEmpty
+        cache.save(WidgetSnapshot(
+            organization: credentials.organization, organizationName: credentials.organizationName, period: spending.period,
+            totals: totals.map { Money(currency: $0.currency, amount: $0.amount) },
+            forecasts: totals.compactMap { total in
+                Forecast.monthEnd(total: total.amount, currency: total.currency, period: spending.period, now: now()).map { Money(currency: total.currency, amount: $0) }
+            },
+            running: haveInstances ? instances.filter { $0.state == "running" }.count : nil,
+            stopped: haveInstances ? instances.filter { $0.state != "running" }.count : nil,
+            updatedAt: spendingFetchedAt ?? now()))
+        onSnapshotChange?()
+    }
+    private func clearSnapshot() { cache.clear(); onSnapshotChange?() }
     func disconnect() async {
         guard !committing else { return }
         generation = UUID(); busy = true; historyBusy = false
@@ -261,6 +283,7 @@ final class DashboardStore: ObservableObject {
             instances = []; spending = nil; projectID = ""; zone = ""; search = ""; statusFilter = ""
             history = [:]; historyErrors = [:]; historyRequested = false
             invoices = nil; invoicesError = nil
+            clearSnapshot()
             successfulZones = []; failedZones = [:]; zoneUpdatedAt = [:]
             refreshedAt = nil; spendingFetchedAt = nil
             instanceError = nil; spendingError = nil; connectionError = nil
