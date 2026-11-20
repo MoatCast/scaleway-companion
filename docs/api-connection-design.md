@@ -25,7 +25,7 @@ Keep sample data behind an explicit demo mode. Never substitute sample amounts f
 
 ## Free and open source
 
-All app functionality will be free. No IAP, subscriptions, or paid feature tiers. The owner selected MPL 2.0; the full licence is in the repository’s LICENSE file. Maintain contributor/build guidance and the unofficial-client notice before publishing. Review the repository for secrets and personal signing/device metadata before any public push. Public source repository: https://github.com/MoatCast/scaleway-companion.
+All app functionality will be free. No IAP, subscriptions, or paid feature tiers. The maintainer selected MPL 2.0; the full licence is in the repository’s LICENSE file. Maintain contributor/build guidance and the unofficial-client notice before publishing. Review the repository for secrets and personal signing/device metadata before any public push. Public source repository: https://github.com/MoatCast/scaleway-companion.
 
 ## Acceptance
 
@@ -36,4 +36,4 @@ Verify request authentication, redirect rejection, credential removal, paginatio
 - https://www.scaleway.com/en/developers/api — X-Auth-Token authentication
 - https://www.scaleway.com/en/developers/api/instance — zonal Instance reads
 - https://www.scaleway.com/en/developers/api/billing — consumption and organization context
-- Scaleway Slack response supplied by the owner on 2 November 2026
+- Scaleway Slack response supplied by the maintainer on 2 November 2026

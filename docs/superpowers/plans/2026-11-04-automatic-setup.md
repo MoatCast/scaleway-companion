@@ -1,18 +1,18 @@
 # Automatic restricted connection setup implementation plan
 
-> Execute inline using executing-plans and test-driven-development. The owner explicitly approved the existing onboarding design in docs/browser-sign-in-experiment.md.
+> Execute inline using executing-plans and test-driven-development. The maintainer explicitly approved the existing onboarding design in docs/browser-sign-in-experiment.md.
 
 **Goal:** Browser sign-in → select Organization/projects → approve restricted IAM application setup → verify and save application key → dashboard.
 **Architecture:** Reuse the iPhone loopback/browser handoff. Add a fixed-origin IAM client and an in-memory setup coordinator with targeted rollback. Dashboard commits a verified key atomically, preserving the current connection until Keychain save succeeds.
 **Tech Stack:** SwiftUI, Network, Foundation URLSession, Security Keychain. No dependencies or backend.
-**Spec:** docs/browser-sign-in-experiment.md, Proposed onboarding after the successful handoff; current owner instruction supersedes its old no-provisioning implementation boundary.
+**Spec:** docs/browser-sign-in-experiment.md, Proposed onboarding after the successful handoff; current maintainer instruction supersedes its old no-provisioning implementation boundary.
 
 ## Global constraints
 
 - No simulators. No credentials or authenticated browser screenshots/logging. Browser sessions remain memory-only.
 - A user must press Create read-only connection after seeing scopes. Never create a user-bound key.
 - InstancesReadOnly for explicitly selected project UUIDs; BillingReadOnly for the chosen Organization. No all-project wildcard, IAM privileges or extra permission sets on the new application.
-- Keep manual-key login and the current working connection. No account writes by development tools; live writes occur only when the owner approves them in the phone UI.
+- Keep manual-key login and the current working connection. No account writes by development tools; live writes occur only when the maintainer approves them in the phone UI.
 - Rollback only resources created by this attempt. Report ambiguous requests/cleanup failures without blind POST retries.
 
 ## Tasks and interfaces
@@ -45,9 +45,9 @@
 
 - Final verification: 65 macOS core tests passed; signed physical iPhone build-for-testing and unsigned generic iPhone Release build passed. Update installed in place and launched normally, retaining the saved account.
 - Focused physical UI check testAutomaticSetupCanOpenAndReturnWithoutSigningIn passed (1/1, 19.453 seconds). Pre-sign-in dark screenshot reviewed: readable wrapping/contrast and no clipping. No browser pages/screenshots or account writes automated. Results outside repository at /tmp/scaleway-automatic-setup-ui.xcresult.
-- Owner asked to perform browser sign-in, choose scopes, approve creation in the app, and report the result. Live provisioning and saved replacement still pending; password/MFA/SSO not retested.
+- Maintainer asked to perform browser sign-in, choose scopes, approve creation in the app, and report the result. Live provisioning and saved replacement still pending; password/MFA/SSO not retested.
 - Ruling: existing group/AllApps policy inheritance must be absent for automatic setup to guarantee requested scopes; refuse setup rather than modify existing policies. Cost if wrong: conservative fallback may require a manual key on an Organization whose inherited rules happen to be equivalent.
 - No commits or pushes performed. No simulators started. No remaining deferred static review findings.
 
-- Owner-confirmed live acceptance: “Connected and dashboard data matches.” This confirms the automatic sign-in/scope-selection/approval/provision/verify/save/dashboard flow on the physical iPhone. No live creation or authentication was driven by automation.
-- Implementation and main device acceptance complete. Live cancellation/recovery and restoration of the replacement after relaunch remain untested; password/MFA/SSO not retested. No additional tests, simulator runs, screenshots or account changes performed after owner sign-in.
+- Maintainer-confirmed live acceptance: “Connected and dashboard data matches.” This confirms the automatic sign-in/scope-selection/approval/provision/verify/save/dashboard flow on the physical iPhone. No live creation or authentication was driven by automation.
+- Implementation and main device acceptance complete. Live cancellation/recovery and restoration of the replacement after relaunch remain untested; password/MFA/SSO not retested. No additional tests, simulator runs, screenshots or account changes performed after maintainer sign-in.

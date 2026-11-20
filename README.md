@@ -102,4 +102,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for bug reports, pull requests and local 
 
 ## Licence
 
-Original source code is licensed under the [Mozilla Public License 2.0](LICENSE), SPDX `MPL-2.0`. Contributions to covered files use the same licence. Third-party names and trademarks remain the property of their respective owners.
+Original source code is licensed under the [Mozilla Public License 2.0](LICENSE), SPDX `MPL-2.0`. Contributions to covered files use the same licence. Third-party names and trademarks remain the property of their respective holders.

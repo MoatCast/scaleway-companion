@@ -35,12 +35,12 @@ No approval prompt for restricted access is invented here: this unsupported cons
 - 41 macOS core checks pass, including actual localhost HTTP delivery, unrelated-request rejection, one-shot consumption, cancellation, timeout cleanup, browser-dismissal ordering, malformed callback/token rejection, verification identity/expiry, refused redirects and rejected/malformed API responses.
 - Signed Debug iPhone build and generic unsigned Release build succeed. Corrected Debug build installed on the connected physical iPhone; automatic launch was blocked while it was locked. A simulator was not started.
 - Independent static review found a suspension-boundary callback/dismissal race. Receipt is now recorded synchronously in the receiver and consulted by the browser-dismissal handler; regression checks and the full suite pass after the fix.
-- **Owner-confirmed physical iPhone result, 4 November 2026:** existing-passkey sign-in completed; callback, session and both API reads were verified. This passes the experiment’s callback/session/API success gate. This is owner-reported device evidence, not an automated test or a provider support guarantee.
+- **Maintainer-confirmed physical iPhone result, 4 November 2026:** existing-passkey sign-in completed; callback, session and both API reads were verified. This passes the experiment’s callback/session/API success gate. This is maintainer-reported device evidence, not an automated test or a provider support guarantee.
 - Cancellation with the live account and continued saved-key access after successful/failed/cancelled attempts remain pending manual verification. Password/MFA and SSO are untested.
 
 ## Proposed onboarding after the successful handoff
 
-The diagnostic experiment still creates nothing. The owner subsequently authorized the separate [automatic setup implementation](automatic-setup.md), which now uses this design.
+The diagnostic experiment still creates nothing. The maintainer subsequently authorized the separate [automatic setup implementation](automatic-setup.md), which now uses this design.
 
 1. After browser authentication, verify the session and identify available Organizations. Ask the user to choose an Organization and projects; do not silently reuse the experiment’s already-connected Organization for a new account.
 2. Show a permission summary before any provisioning: a dedicated IAM application; InstancesReadOnly on selected projects; BillingReadOnly at Organization scope. Explain that BillingReadOnly covers more than consumption, including other billing information, and that the temporary console session may carry the user’s broader account permissions.

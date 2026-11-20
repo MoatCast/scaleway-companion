@@ -46,7 +46,7 @@ final class IAMSetupTests: XCTestCase {
         receipt.application = app
         let api = IAMSetupAPI { request in
             let json = request.url!.path.hasSuffix("33333333-3333-4333-8333-333333333333")
-                ? "{\"id\":\"33333333-3333-4333-8333-333333333333\",\"organization_id\":\"11111111-1111-4111-8111-111111111111\",\"name\":\"renamed-by-owner\"}"
+                ? "{\"id\":\"33333333-3333-4333-8333-333333333333\",\"organization_id\":\"11111111-1111-4111-8111-111111111111\",\"name\":\"renamed-elsewhere\"}"
                 : "{\"policies\":[],\"applications\":[],\"total_count\":0}"
             return (Data(json.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }

@@ -1,6 +1,6 @@
 # Automatic read-only connection setup
 
-Implemented 4 November 2026. The browser/passkey handoff was previously confirmed on a physical iPhone by the owner. The owner subsequently confirmed that automatic setup completed on the physical iPhone and the connected dashboard data matches the account.
+Implemented 4 November 2026. The browser/passkey handoff was previously confirmed on a physical iPhone by the maintainer. The maintainer subsequently confirmed that automatic setup completed on the physical iPhone and the connected dashboard data matches the account.
 
 ## Experience
 
@@ -42,10 +42,10 @@ The committed credentials include the unique setup name. After a process interru
 
 - 65 macOS core tests pass, including exact request scopes, pre-approval no writes, foreign/malformed responses, policy widening, inherited AllApps access, cancellation during creation, propagation bounds, save failure rollback, cleanup failure, renamed resources, uncertain outcomes, malformed journals, session expiry during cleanup and saved-connection recovery.
 - Independent static review found two recovery issues, both reproduced with failing tests and fixed. Additional scope and journal regressions pass. No deferred review findings.
-- Final signed Debug build-for-testing and unsigned Release iPhone builds pass without a simulator. The update was installed in place and launched normally on the owner’s connected iPhone.
+- Final signed Debug build-for-testing and unsigned Release iPhone builds pass without a simulator. The update was installed in place and launched normally on the maintainer’s connected iPhone.
 - One focused physical-iPhone UI test passed: open automatic setup, confirm provisioning is unavailable before sign-in, then return through the existing-key fallback. The pre-sign-in dark-mode screenshot was reviewed for wrapping, contrast and clipping. No browser login or IAM write was automated.
-- **Owner-confirmed live acceptance, 4 November 2026:** browser sign-in, Organization/project selection, explicit creation approval, IAM application/policy/key setup, verification, Keychain saving and dashboard connection completed on the physical iPhone; dashboard data matches the account. This is owner-reported acceptance, not an automated live provisioning test or an independent console audit.
-- Live cancellation/recovery and replacement-key restoration after relaunch remain untested on the physical device; those state paths have fixture coverage. Password/MFA and SSO were not retested. No account mutation was performed by development tools; provisioning was approved and executed by the owner through the app.
+- **Maintainer-confirmed live acceptance, 4 November 2026:** browser sign-in, Organization/project selection, explicit creation approval, IAM application/policy/key setup, verification, Keychain saving and dashboard connection completed on the physical iPhone; dashboard data matches the account. This is maintainer-reported acceptance, not an automated live provisioning test or an independent console audit.
+- Live cancellation/recovery and replacement-key restoration after relaunch remain untested on the physical device; those state paths have fixture coverage. Password/MFA and SSO were not retested. No account mutation was performed by development tools; provisioning was approved and executed by the maintainer through the app.
 
 The browser handoff remains unsupported by Scaleway and may change without notice. This implementation is not a registered third-party OAuth/PKCE integration.
 

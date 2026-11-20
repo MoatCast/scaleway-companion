@@ -1,6 +1,6 @@
 # API Connection Implementation Plan
 
-> Execution: implement inline with executing-plans and test-driven-development. The owner explicitly requested implementation of the existing design.
+> Execution: implement inline with executing-plans and test-driven-development. The maintainer explicitly requested implementation of the existing design.
 
 **Goal:** Connect the iPhone dashboard to real spending and Instances with a restricted API key.
 **Architecture:** Fixed-origin API client, device-only Keychain credentials, main-actor dashboard state, explicit demo mode.
@@ -25,9 +25,9 @@
 
 ## Execution ledger
 
-- Owner approved implementation on 4 November 2026; no further design confirmation needed.
+- Maintainer approved implementation on 4 November 2026; no further design confirmation needed.
 - Work in the current clean checkout; no unrelated edits exist. No public push is part of this implementation.
-- Simulator-free unit tests run through SwiftPM; iOS compilation uses a generic device destination. Real account verification requires the owner to enter a key on the phone, never in chat.
+- Simulator-free unit tests run through SwiftPM; iOS compilation uses a generic device destination. Real account verification requires the maintainer to enter a key on the phone, never in chat.
 
 - API and state tests failed before their types were implemented; 18 tests subsequently passed. Added an Instance body-count regression, observed failure (one row instead of two), fixed pagination, and reran all 19 tests successfully.
 - Generic iOS app build and build-for-testing passed. No simulators or real account requests used.

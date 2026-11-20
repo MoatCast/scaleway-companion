@@ -70,7 +70,7 @@ final class BrowserLogin: NSObject, ObservableObject {
                 guard self.currentAttempt == id, !Task.isCancelled else { return }
                 self.verifiedUntil = expiration
                 if let onVerified {
-                    // Handoff transfers ownership to setup without cancelling the receiving task.
+                    // Handoff passes the session to setup without cancelling the receiving task.
                     self.work = nil
                     self.finish(.completed)
                     await onVerified(SetupSession(envelope: envelope, expiresAt: expiration))

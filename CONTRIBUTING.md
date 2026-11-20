@@ -14,7 +14,7 @@ Use the native SwiftUI design and existing themes. Avoid new dependencies unless
 
 Run the macOS core checks in [README.md](README.md). Add focused tests for behavior changes, especially authentication, permissions, money and cancellation. UI changes need physical-iPhone verification; identify anything untested. Automated checks do not require a simulator, a Scaleway account or secrets.
 
-Set your own signing team locally; do not commit signing identities, credentials, provisioning profiles, build output or private account data. Never perform live provisioning or resource actions without the account owner's explicit approval.
+Set your own signing team locally; do not commit signing identities, credentials, provisioning profiles, build output or private account data. Never perform live provisioning or resource actions without the account holder's explicit approval.
 
 ## Licence
 
