@@ -38,7 +38,7 @@ struct DemoDashboardView: View {
             }
             .navigationTitle(title).navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Text("Cloud Companion · Demo").font(.subheadline).foregroundStyle(.secondary).fixedSize() }.sharedBackgroundVisibility(.hidden)
+                ToolbarItem(placement: .topBarLeading) { Text("Companion for Scaleway · Demo").font(.subheadline).foregroundStyle(.secondary).fixedSize() }.sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Account", systemImage: "person.crop.circle") { account = true }.accessibilityIdentifier("accountButton")
                 }

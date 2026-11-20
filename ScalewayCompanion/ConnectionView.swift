@@ -248,7 +248,7 @@ struct OpenSourceSection: View {
             SectionTitle("Free and open source")
         } footer: {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Cloud Companion is free, with no ads or subscriptions, and its code is public under MPL 2.0. Report a problem or suggest an idea by opening an issue, or improve the app yourself with a pull request.")
+                Text("Companion for Scaleway is free, with no ads or subscriptions, and its code is public under MPL 2.0. Report a problem or suggest an idea by opening an issue, or improve the app yourself with a pull request.")
                 Text("Independent app, not affiliated with Scaleway.")
             }
         }

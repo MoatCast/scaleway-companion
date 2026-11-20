@@ -41,7 +41,7 @@ struct BudgetSettingsSection: View {
                 }
             }
             if denied {
-                Label("Notifications are off for Cloud Companion. Turn them on in Settings to get budget alerts.", systemImage: "exclamationmark.triangle.fill")
+                Label("Notifications are off for Companion. Turn them on in Settings to get budget alerts.", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(Theme.danger)
             }
         } header: {

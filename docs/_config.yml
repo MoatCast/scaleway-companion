@@ -1,0 +1,5 @@
+title: Companion for Scaleway
+description: Free, open-source iPhone app for Scaleway spending and Instances.
+theme: jekyll-theme-minimal
+# Internal design notes stay in the repository but off the website.
+exclude: [superpowers, api-connection-design.md, automatic-setup.md, browser-sign-in-experiment.md, parked-browser-experiment.md]

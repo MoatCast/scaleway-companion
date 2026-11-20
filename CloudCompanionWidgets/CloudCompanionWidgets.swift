@@ -113,7 +113,7 @@ struct SpendWidgetView: View {
     private var empty: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Cloud spend", systemImage: "cloud").font(.footnote.weight(.semibold)).foregroundStyle(accent)
-            Text("Open Cloud Companion to load data").font(.caption).foregroundStyle(.secondary)
+            Text("Open Companion to load data").font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
