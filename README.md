@@ -6,9 +6,12 @@ A free, open-source, unofficial native iPhone app for checking Scaleway spending
 
 ## Features
 
-- **Overview:** current-month spending, running Instances and project filtering.
+- **Overview:** current-month spending with a month-end forecast, running Instances and project filtering.
 - **Instances:** all 12 configured zones, search, project/zone/status filters and read-only details.
-- **Spending:** six calendar months, monthly selection, category breakdown and separate currencies.
+- **Spending:** six calendar months, monthly selection, category breakdown, top resources and separate currencies.
+- **Invoices:** issued invoices with tax and discount breakdown; share the PDF.
+- **Widgets:** Home Screen (small, medium) and Lock Screen widgets with this month's spend and forecast.
+- **Budget alert:** optional monthly budget with local notifications at 80% and 100%. Best effort: iOS decides when the app checks in the background, and billing data can lag.
 - **Appearance:** Ocean, Forest, Amber and Graphite themes, plus System, Light and Dark modes. Native navigation and toolbars use Apple's Liquid Glass materials; financial data stays opaque.
 - **Connection options:** browser-assisted setup of a dedicated restricted IAM application key, or manual entry of an existing key.
 - **Demo mode:** fictional account data and clearly labelled simulated controls, separate from live data.
@@ -44,7 +47,7 @@ The saved API key is sent directly to Scaleway over HTTPS. It is stored in devic
 
 Temporary browser sessions remain in memory and are discarded after setup, cancellation or expiry. Session and renewal tokens are never saved to Keychain, preferences or logs. An interrupted setup can leave a non-secret recovery record containing resource identifiers, allowing targeted cleanup without storing credentials. Uncertain creation outcomes block duplicate setup until resolved.
 
-Disconnect removes the local key and loaded account data. To revoke access everywhere, delete the key or application in Scaleway's IAM console. The dashboard is read only; automatic setup performs the IAM creation and cleanup explicitly approved through the setup screen.
+Widgets read a non-secret snapshot (totals, forecast and Instance counts; no key, project IDs or Instance names) from the app's App Group container; they never call the network or the Keychain. Budget settings stay on the device. Disconnect removes the local key, loaded account data, the widget snapshot and budget settings. To revoke access everywhere, delete the key or application in Scaleway's IAM console. The dashboard is read only; automatic setup performs the IAM creation and cleanup explicitly approved through the setup screen.
 
 ## Understanding the data
 
@@ -54,7 +57,7 @@ The dashboard checks all configured Instance zones in batches of three. Project 
 
 ## Build
 
-Requirements: macOS, Xcode with the iOS 26+ SDK, and an iPhone running iOS 26+ for device testing. Open `ScalewayCompanion.xcodeproj` and select the **ScalewayCompanion** scheme. Set your own signing team and unique bundle identifier for a physical device; personal signing configuration is not included.
+Requirements: macOS, Xcode with the iOS 26+ SDK, and an iPhone running iOS 26+ for device testing. Open `ScalewayCompanion.xcodeproj` and select the **ScalewayCompanion** scheme. Set your own signing team for a physical device. The bundle identifier comes from `APP_BUNDLE_ID` (project build settings); the widget extension and App Group (`group.$(APP_BUNDLE_ID)`) derive from it, so forks change one value and register that App Group for their team. Personal signing configuration is not included.
 
 Compile for iPhone without starting a simulator:
 
