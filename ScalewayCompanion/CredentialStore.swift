@@ -25,7 +25,8 @@ actor KeychainCredentials: CredentialVault {
         if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess, let data = item as? Data,
               let saved = try? JSONDecoder().decode(APICredentials.self, from: data) else { throw APIError.keychain }
-        return try APICredentials(secret: saved.secret, organization: saved.organization, setupName: saved.setupName)
+        return try APICredentials(secret: saved.secret, organization: saved.organization, setupName: saved.setupName,
+                                  organizationName: saved.organizationName, projectNames: saved.projectNames, connectedAt: saved.connectedAt)
     }
     func save(_ credentials: APICredentials) throws {
         let attributes: [String: Any] = [

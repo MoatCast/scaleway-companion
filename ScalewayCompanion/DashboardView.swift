@@ -148,7 +148,7 @@ struct DemoDashboardView: View {
                 Section { Label("Demo mode · sample data", systemImage: "cloud") }
                 Section { NavigationLink { AppearanceView() } label: { Label("Appearance", systemImage: "circle.lefthalf.filled") }.accessibilityIdentifier("appearanceSettings") }
                 Section { Button("Connect account") { account = false; onConnect() }.accessibilityIdentifier("openAPIConnection") }
-                Section { Text("Free and open source · MPL 2.0").font(.footnote).foregroundStyle(.secondary) }
+                OpenSourceSection()
             }
             .scrollContentBackground(.hidden).background(palette.canvas).navigationTitle("Account")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { account = false } } }

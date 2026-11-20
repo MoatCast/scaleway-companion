@@ -20,7 +20,12 @@ struct APICredentials: Codable, Equatable, Sendable {
     let secret: String
     let organization: String
     let setupName: String?
-    init(secret: String, organization: String, setupName: String? = nil) throws {
+    // Display-only labels; optional so credentials saved by earlier versions still decode.
+    var organizationName: String?
+    var projectNames: [String]?
+    var connectedAt: Date?
+    init(secret: String, organization: String, setupName: String? = nil,
+         organizationName: String? = nil, projectNames: [String]? = nil, connectedAt: Date? = nil) throws {
         // Reject control characters before trimming so pasted header injection cannot be accepted.
         guard !secret.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw APIError.invalidCredentials }
         let key = secret.trimmingCharacters(in: .whitespaces)
@@ -30,6 +35,9 @@ struct APICredentials: Codable, Equatable, Sendable {
         self.secret = key
         self.organization = org
         self.setupName = setupName
+        self.organizationName = organizationName
+        self.projectNames = projectNames
+        self.connectedAt = connectedAt
     }
 }
 

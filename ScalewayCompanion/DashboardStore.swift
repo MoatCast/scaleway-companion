@@ -40,6 +40,9 @@ final class DashboardStore: ObservableObject {
     private let vault: any CredentialVault
     private let now: @Sendable () -> Date
     var organization: String? { credentials?.organization }
+    var organizationName: String? { credentials?.organizationName }
+    var projectNames: [String]? { credentials?.projectNames }
+    var connectedAt: Date? { credentials?.connectedAt }
     var periods: [String] { Self.billingPeriods(now: now()) }
     var projects: [String] {
         Set(instances.map(\.project) + (spending?.items.map(\.projectID) ?? []) + history.values.flatMap { $0.items.map(\.projectID) }).filter { !$0.isEmpty }.sorted()
@@ -100,7 +103,7 @@ final class DashboardStore: ObservableObject {
     func connect(secret: String, organization: String) async {
         guard !busy, !connected else { return }
         restoring = false
-        do { await load(try APICredentials(secret: secret, organization: organization), newConnection: true) }
+        do { await load(try APICredentials(secret: secret, organization: organization, connectedAt: now()), newConnection: true) }
         catch { connectionError = APIError.invalidCredentials.localizedDescription }
     }
     // Saving is the commit point: cancellation/disconnect cannot revoke a key after it is saved.

@@ -33,26 +33,22 @@ struct ConnectionView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Image(systemName: "cloud").font(.largeTitle).foregroundStyle(Theme.muted)
-                        Text(store.connected ? "Your cloud account" : "Connect your cloud").font(.title2.weight(.semibold))
-                        Text("Connect with a restricted Scaleway API key. Your key stays in this iPhone’s secure storage and goes directly to Scaleway.")
-                            .foregroundStyle(.secondary)
-                    }.padding(.vertical, 12)
-                }
-                Section {
-                    Button(store.connected ? "Set up a read-only connection" : "Continue with Scaleway") { showBrowserSetup = true }
-                        .disabled(store.busy).accessibilityIdentifier("browserSetup")
-                    if !store.connected { Text("Sign in on Scaleway’s website and approve a dedicated restricted key.").font(.footnote).foregroundStyle(.secondary) }
-                }
                 if store.connected {
-                    Section("Connected organization") {
-                        Text(store.organization ?? "").font(.footnote.monospaced()).textSelection(.enabled)
-                        Text("The key is stored in Keychain and is never displayed here.").font(.footnote).foregroundStyle(.secondary)
-                        Button("Disconnect", role: .destructive) { confirmDisconnect = true }.disabled(store.busy)
-                    }
+                    ConnectedAccountSections(store: store)
                 } else {
+                    Section {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Image(systemName: "cloud").font(.largeTitle).foregroundStyle(Theme.muted)
+                            Text("Connect your cloud").font(.title2.weight(.semibold))
+                            Text("Connect with a restricted Scaleway API key. Your key stays in this iPhone’s secure storage and goes directly to Scaleway.")
+                                .foregroundStyle(.secondary)
+                        }.padding(.vertical, 12)
+                    }
+                    Section {
+                        Button("Continue with Scaleway") { showBrowserSetup = true }
+                            .disabled(store.busy).accessibilityIdentifier("browserSetup")
+                        Text("Sign in on Scaleway’s website and approve a dedicated restricted key.").font(.footnote).foregroundStyle(.secondary)
+                    }
                     Section("API connection") {
                         SecureField("Secret API key", text: $secret)
                             .textContentType(.password).autocorrectionDisabled().textInputAutocapitalization(.never)
@@ -81,6 +77,17 @@ struct ConnectionView: View {
                         Label("Appearance", systemImage: "circle.lefthalf.filled")
                     }.accessibilityIdentifier("appearanceSettings")
                 }
+                if store.connected {
+                    Section {
+                        Button("Replace connection…") { showBrowserSetup = true }
+                            .disabled(store.busy).accessibilityIdentifier("browserSetup")
+                        Button("Disconnect", role: .destructive) { confirmDisconnect = true }.disabled(store.busy)
+                    } footer: {
+                        Text(store.setupName != nil
+                             ? "Replacing creates a new restricted key. This connection stays active until the new one is verified."
+                             : "Replacing signs in on Scaleway and creates a dedicated restricted key. To revoke this key, delete it in Scaleway’s IAM console.")
+                    }
+                }
                 #if DEBUG
                 if store.connected, let organization = store.organization {
                     Section("Development") {
@@ -104,10 +111,7 @@ struct ConnectionView: View {
                 if let onDemo, !store.connected {
                     Section { Button("Explore demo", action: onDemo).disabled(store.busy).accessibilityIdentifier("exploreDemo") }
                 }
-                Section {
-                    Text("Free and open source · MPL 2.0\nIndependent app, not affiliated with Scaleway.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
+                OpenSourceSection()
             }
             .scrollContentBackground(.hidden)
             .background(palette.canvas)
@@ -123,6 +127,115 @@ struct ConnectionView: View {
             }
             .sheet(isPresented: $showBrowserSetup) { BrowserSetupView(store: store) }
             .onDisappear { secret = "" }
+        }
+    }
+}
+
+private struct SectionTitle: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View { Text(text).font(.headline).foregroundStyle(.primary).textCase(nil) }
+}
+
+private struct AccessRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    var trailing: String?
+    @Environment(\.themePalette) private var palette
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).foregroundStyle(palette.accent).frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail).font(.footnote).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            if let trailing { Text(trailing).font(.subheadline).foregroundStyle(.secondary) }
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct ConnectedAccountSections: View {
+    @ObservedObject var store: DashboardStore
+    private var automatic: Bool { store.setupName != nil }
+    private var method: String {
+        let how = automatic ? "Set up with Scaleway sign-in" : "API key entered manually"
+        guard let date = store.connectedAt else { return how }
+        return "\(how) · \(date.formatted(date: .abbreviated, time: .omitted))"
+    }
+    private var instancesDetail: String {
+        guard automatic else { return "Projects allowed by the key’s policy" }
+        guard let names = store.projectNames, !names.isEmpty else { return "Projects selected during setup" }
+        return names.joined(separator: ", ")
+    }
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Connected · read-only", systemImage: "checkmark.shield.fill")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.success)
+                Text(store.organizationName ?? "Scaleway Organization")
+                    .font(.title.bold()).padding(.top, 6).accessibilityIdentifier("connectedOrganizationName")
+                Text(store.organization ?? "").font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                Text(method).font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            }
+            .padding(.vertical, 8)
+        }
+        Section {
+            AccessRow(icon: "server.rack", title: "Instances", detail: instancesDetail,
+                      trailing: automatic ? store.projectNames.map { $0.count == 1 ? "1 project" : "\($0.count) projects" } : nil)
+            AccessRow(icon: "chart.bar.fill", title: "Billing",
+                      detail: automatic ? "Also invoices, payment methods" : "Spending, invoices, payment methods",
+                      trailing: automatic ? "Whole org" : nil)
+        } header: {
+            SectionTitle("What this app can read")
+        } footer: {
+            Text(automatic ? "No permission to start, stop, create or delete resources."
+                           : "This app only reads data. Access depends on the policy you attached to this key.")
+        }
+        if let name = store.setupName {
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("IAM application").font(.footnote).foregroundStyle(.secondary)
+                    Text(name).font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                }.padding(.vertical, 2)
+            } header: {
+                SectionTitle("In Scaleway")
+            } footer: {
+                Text("To revoke access everywhere, delete this application in Scaleway’s IAM console. Disconnect only removes the key from this iPhone.")
+            }
+        }
+    }
+}
+
+struct OpenSourceSection: View {
+    @Environment(\.themePalette) private var palette
+    var body: some View {
+        Section {
+            Link(destination: URL(string: "https://github.com/MoatCast/scaleway-companion")!) {
+                HStack(spacing: 12) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right").foregroundStyle(palette.accent).frame(width: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("View on GitHub").foregroundStyle(palette.accent)
+                        // Concrete label colours: Link tints hierarchical styles with the accent.
+                        Text("MoatCast/scaleway-companion").font(.footnote).foregroundStyle(Color(uiColor: .secondaryLabel))
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold)).foregroundStyle(Color(uiColor: .tertiaryLabel))
+                }
+                .frame(minHeight: 44)
+            }
+            .accessibilityIdentifier("githubLink")
+        } header: {
+            SectionTitle("Free and open source")
+        } footer: {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Cloud Companion is free, with no ads or subscriptions, and its code is public under MPL 2.0. Report a problem or suggest an idea by opening an issue, or improve the app yourself with a pull request.")
+                Text("Independent app, not affiliated with Scaleway.")
+            }
         }
     }
 }

@@ -37,6 +37,27 @@ final class DashboardStoreTests: XCTestCase {
         XCTAssertEqual(saved?.secret, "new-key")
         XCTAssertEqual(saved?.setupName, "attempt")
     }
+    func testAccountLabelsPersistAndOlderSavedCredentialsStillDecode() async throws {
+        // Keychain JSON written before labels existed must still load, with no names shown.
+        let legacy = Data(#"{"secret":"old-key","organization":"\#(organization)","setupName":"Companion-x"}"#.utf8)
+        let decoded = try JSONDecoder().decode(APICredentials.self, from: legacy)
+        XCTAssertEqual(decoded.setupName, "Companion-x")
+        XCTAssertNil(decoded.organizationName)
+        XCTAssertNil(decoded.projectNames)
+        XCTAssertNil(decoded.connectedAt)
+
+        let vault = MemoryVault()
+        let store = DashboardStore(api: PartialService(), vault: vault)
+        let date = Date(timeIntervalSince1970: 1_795_000_000)
+        try await store.adoptProvisionedConnection(APICredentials(secret: "new-key", organization: organization, setupName: "attempt",
+            organizationName: "Northwind", projectNames: ["Personal", "Production"], connectedAt: date))
+        XCTAssertEqual(store.organizationName, "Northwind")
+        XCTAssertEqual(store.projectNames, ["Personal", "Production"])
+        XCTAssertEqual(store.connectedAt, date)
+        let saved = try await vault.load()
+        XCTAssertEqual(saved?.organizationName, "Northwind")
+        XCTAssertEqual(saved?.projectNames, ["Personal", "Production"])
+    }
     func testFailedReplacementPreservesExistingKeyAndData() async throws {
         let vault = FailingReplacementVault()
         let store = DashboardStore(api: PartialService(), vault: vault)

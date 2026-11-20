@@ -112,7 +112,10 @@ final class AutomaticSetup: ObservableObject {
             let key = try await api.createKey(session: session, application: receipt.application!, name: receipt.name)
             receipt.uncertain = false; record(receipt)
             try Task.checkCancellation()
-            let candidate = try APICredentials(secret: key.secret_key, organization: receipt.organization, setupName: receipt.name)
+            let candidate = try APICredentials(secret: key.secret_key, organization: receipt.organization, setupName: receipt.name,
+                organizationName: organizations.first { $0.id == receipt.organization }?.name,
+                projectNames: fresh.filter { selected.contains($0.id) }.map(\.name).sorted { $0.localizedStandardCompare($1) == .orderedAscending },
+                connectedAt: Date())
             phase = .verifying
             for attempt in 0...12 {
                 do { try await api.verifyKey(candidate, projects: selected); break }
