@@ -7,7 +7,7 @@ let package = Package(
     products: [.library(name: "ScalewayCompanion", targets: ["ScalewayCompanion"])],
     targets: [
         .target(name: "ScalewayCompanion", path: "ScalewayCompanion",
-                exclude: ["BrowserSetupView.swift", "ScalewayCompanionApp.swift", "DashboardView.swift", "LoginExperimentView.swift", "BrowserLogin.swift", "Info.plist", "ConnectionView.swift", "LiveDashboardView.swift", "Theme.swift", "SpendingHistoryView.swift", "AppearanceView.swift"],
+                exclude: ["BrowserSetupView.swift", "ScalewayCompanionApp.swift", "DashboardView.swift", "LoginExperimentView.swift", "BrowserLogin.swift", "Info.plist", "ConnectionView.swift", "LiveDashboardView.swift", "Theme.swift", "SpendingHistoryView.swift", "AppearanceView.swift", "Assets.xcassets", "PrivacyInfo.xcprivacy"],
                 sources: ["AutomaticSetup.swift", "IAMSetupAPI.swift", "LoopbackCallback.swift", "SessionProbe.swift", "LoginProtocol.swift", "DemoData.swift", "CloudAPI.swift", "CredentialStore.swift", "DashboardStore.swift", "BillingSummary.swift", "AppearancePreferences.swift"]),
         .testTarget(name: "ScalewayCompanionTests", dependencies: ["ScalewayCompanion"], path: "ScalewayCompanionTests")
     ]
