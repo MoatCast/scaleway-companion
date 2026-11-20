@@ -59,6 +59,8 @@ struct SpendingHistoryView: View {
                             ForEach(resources.dropFirst(5)) { ResourceRow(resource: $0) }
                         }.font(.subheadline).tint(palette.accent).frame(minHeight: 44)
                     }
+                    Text("Grouped by resource name. Resources with the same name in different projects are combined.")
+                        .font(.footnote).foregroundStyle(Theme.muted)
                 }
             }
             Text("Estimated consumption, excluding tax. Charges can be delayed. Discounts and credits are not deducted here; this is not a final invoice.")

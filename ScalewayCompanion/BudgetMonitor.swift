@@ -56,15 +56,22 @@ enum BudgetMonitor {
         let budget = BudgetStore()
         guard let settings = budget.settings else { return }
         let result = BudgetCheck.evaluate(settings: settings, totals: totals, period: period, organization: organization, state: budget.state)
-        budget.state = result.state
         guard let percent = result.alertPercent,
-              let total = totals.first(where: { $0.currency == settings.currency })?.amount else { return }
+              let total = totals.first(where: { $0.currency == settings.currency })?.amount else {
+            budget.state = result.state   // nothing to send; may record a new month
+            return
+        }
+        // Record the level only once iOS accepted the alert, so turning notifications back on still alerts.
+        let center = UNUserNotificationCenter.current()
+        guard [.authorized, .provisional, .ephemeral].contains(await center.notificationSettings().authorizationStatus) else { return }
         let content = UNMutableNotificationContent()
         content.title = percent >= 100 ? "Cloud budget reached" : "Cloud spend at \(percent)% of budget"
         content.body = "\(total.formatted(.currency(code: settings.currency))) of \(settings.amount.formatted(.currency(code: settings.currency))) this month · estimate"
         content.sound = .default
-        try? await UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "budget-\(period)-\(percent)", content: content, trigger: nil))
+        do {
+            try await center.add(UNNotificationRequest(identifier: "budget-\(period)-\(percent)", content: content, trigger: nil))
+            budget.state = result.state
+        } catch {}
     }
     static func requestPermission() async -> Bool {
         (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false

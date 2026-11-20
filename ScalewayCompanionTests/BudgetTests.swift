@@ -69,6 +69,12 @@ final class BudgetTests: XCTestCase {
         store.update(other)                                     // new amount: may alert again
         XCTAssertNil(store.state)
     }
+    func testCurrencyChoicesIncludeSavedCurrencyMissingFromTotals() {
+        // Saved EUR before spending loaded; the account is actually billed in CHF.
+        XCTAssertEqual(BudgetCheck.currencyChoices(selected: "EUR", totals: [CurrencyAmount(currency: "CHF", amount: 10)]), ["CHF", "EUR"])
+        XCTAssertEqual(BudgetCheck.currencyChoices(selected: "EUR", totals: eur(10)), ["EUR"])   // one choice: no picker needed
+        XCTAssertEqual(BudgetCheck.currencyChoices(selected: "EUR", totals: []), ["EUR"])
+    }
     func testBudgetStorePersistsAndClears() {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let store = BudgetStore(defaults: defaults)

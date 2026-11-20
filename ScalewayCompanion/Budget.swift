@@ -17,6 +17,12 @@ struct BudgetState: Codable, Equatable {
 enum BudgetCheck {
     static let thresholds = [80, 100]
 
+    /// Currencies the budget can use: the account's billed currencies plus the saved one,
+    /// so a budget saved before spending loaded can still be corrected.
+    static func currencyChoices(selected: String, totals: [CurrencyAmount]) -> [String] {
+        Array(Set(totals.map(\.currency) + [selected])).sorted()
+    }
+
     static func evaluate(settings: BudgetSettings, totals: [CurrencyAmount], period: String, organization: String,
                          state: BudgetState?) -> (alertPercent: Int?, state: BudgetState) {
         let current = state?.period == period ? state! : BudgetState(period: period, notifiedPercent: 0)

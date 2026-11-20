@@ -23,8 +23,10 @@ struct BudgetSettingsSection: View {
                         .keyboardType(.decimalPad).multilineTextAlignment(.trailing).foregroundStyle(palette.accent)
                         .accessibilityIdentifier("budgetAmount")
                 }
-                if Set(totals.map(\.currency)).count > 1 {
-                    Picker("Currency", selection: $currency) { ForEach(totals.map(\.currency), id: \.self) { Text($0).tag($0) } }
+                let choices = BudgetCheck.currencyChoices(selected: currency, totals: totals)
+                if choices.count > 1 {
+                    Picker("Currency", selection: $currency) { ForEach(choices, id: \.self) { Text($0).tag($0) } }
+                        .accessibilityIdentifier("budgetCurrency")
                 }
                 if let used, amount > 0 {
                     let fraction = min(1, NSDecimalNumber(decimal: used / amount).doubleValue)
@@ -55,6 +57,10 @@ struct BudgetSettingsSection: View {
         }
         .onChange(of: amount) { _, _ in if loaded { save() } }
         .onChange(of: currency) { _, _ in if loaded { save() } }
+        .onChange(of: totals.map(\.currency)) { _, billed in
+            // Spending arrived after the view appeared: replace the EUR placeholder if nothing was saved yet.
+            if store.budget.settings == nil, let first = billed.first, !billed.contains(currency) { currency = first }
+        }
     }
     private func load() {
         let saved = store.budget.settings
