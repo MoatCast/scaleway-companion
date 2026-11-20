@@ -39,6 +39,13 @@ struct BudgetStore {
         get { read("budget.state") }
         nonmutating set { write(newValue, "budget.state") }
     }
+    /// Saves settings; a new Organization, amount or currency may alert again this month.
+    func update(_ new: BudgetSettings) {
+        if let old = settings, old.organization != new.organization || old.amount != new.amount || old.currency != new.currency {
+            state = nil
+        }
+        settings = new
+    }
     func clear() { defaults.removeObject(forKey: "budget.settings"); defaults.removeObject(forKey: "budget.state") }
     private func read<T: Decodable>(_ key: String) -> T? { defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) } }
     private func write<T: Encodable>(_ value: T?, _ key: String) {

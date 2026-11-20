@@ -19,8 +19,15 @@ struct SpendProvider: TimelineProvider {
         completion(SpendEntry(date: .now, snapshot: SnapshotCache.shared.load() ?? (context.isPreview ? .sample : nil)))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<SpendEntry>) -> Void) {
-        let entry = SpendEntry(date: .now, snapshot: SnapshotCache.shared.load())
-        completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(3600))))
+        let snapshot = SnapshotCache.shared.load()
+        var entries = [SpendEntry(date: .now, snapshot: snapshot)]
+        // Re-render at the UTC month boundary so last month's total stops reading as "this month".
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        if let next = calendar.dateInterval(of: .month, for: .now)?.end, next < .now.addingTimeInterval(3600) {
+            entries.append(SpendEntry(date: next, snapshot: snapshot))
+        }
+        completion(Timeline(entries: entries, policy: .after(.now.addingTimeInterval(3600))))
     }
 }
 
@@ -50,11 +57,12 @@ struct SpendWidgetView: View {
 
     @ViewBuilder private func content(_ snapshot: WidgetSnapshot, _ total: Money) -> some View {
         let amount = total.amount.formatted(.currency(code: total.currency))
-        let forecast = snapshot.forecasts.first { $0.currency == total.currency }
+        let current = snapshot.isCurrentPeriod(now: entry.date)
+        let forecast = snapshot.currentForecasts(now: entry.date).first { $0.currency == total.currency }
             .map { "On track for ~" + $0.amount.formatted(.currency(code: $0.currency).precision(.fractionLength(0))) }
         switch family {
         case .accessoryInline:
-            Label("\(amount) this month", systemImage: "cloud.fill")
+            Label(current ? "\(amount) this month" : "\(amount) in \(Self.month(snapshot.period, short: false))", systemImage: "cloud.fill")
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 1) {
                 Text("Cloud spend · \(Self.month(snapshot.period, short: true))").font(.headline).widgetAccentable()

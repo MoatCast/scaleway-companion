@@ -11,6 +11,13 @@ final class SnapshotCacheTests: XCTestCase {
                                         forecasts: [Money(currency: "EUR", amount: 85)], running: 2, stopped: 1,
                                         updatedAt: Date(timeIntervalSince1970: 1_795_000_000))
 
+    func testSnapshotIsStaleAfterUTCMonthChanges() {
+        let iso = ISO8601DateFormatter()
+        XCTAssertTrue(sample.isCurrentPeriod(now: iso.date(from: "2026-11-30T23:59:00Z")!))
+        XCTAssertFalse(sample.isCurrentPeriod(now: iso.date(from: "2026-12-01T00:30:00Z")!))
+        XCTAssertEqual(sample.currentForecasts(now: iso.date(from: "2026-11-20T00:00:00Z")!), sample.forecasts)
+        XCTAssertEqual(sample.currentForecasts(now: iso.date(from: "2026-12-01T00:30:00Z")!), [])
+    }
     func testRoundTrip() {
         let cache = isolatedCache()
         cache.save(sample)

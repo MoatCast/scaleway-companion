@@ -55,6 +55,20 @@ final class BudgetTests: XCTestCase {
         XCTAssertNil(budget.settings)
         XCTAssertNil(budget.state)
     }
+    func testChangingBudgetOrganizationResetsNotifiedState() {
+        let store = BudgetStore(defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
+        store.update(settings)
+        store.state = BudgetState(period: "2026-11", notifiedPercent: 100)
+        store.update(settings)                                  // same target: keep "already told"
+        XCTAssertEqual(store.state?.notifiedPercent, 100)
+        var other = settings; other.organization = "22222222-2222-4222-8222-222222222222"
+        store.update(other)                                     // new Organization: may alert again
+        XCTAssertNil(store.state)
+        store.state = BudgetState(period: "2026-11", notifiedPercent: 80)
+        other.amount = 300
+        store.update(other)                                     // new amount: may alert again
+        XCTAssertNil(store.state)
+    }
     func testBudgetStorePersistsAndClears() {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let store = BudgetStore(defaults: defaults)

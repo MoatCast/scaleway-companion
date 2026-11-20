@@ -65,9 +65,7 @@ struct BudgetSettingsSection: View {
     }
     private func save() {
         guard let organization = store.organization else { return }
-        let changedTarget = store.budget.settings.map { $0.amount != amount || $0.currency != currency } ?? true
-        store.budget.settings = BudgetSettings(enabled: enabled, amount: amount, currency: currency, organization: organization)
-        if changedTarget { store.budget.state = nil }  // a new budget can alert again this month
+        store.budget.update(BudgetSettings(enabled: enabled, amount: amount, currency: currency, organization: organization))
         BudgetMonitor.schedule()
     }
 }

@@ -19,6 +19,19 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
     let updatedAt: Date
 }
 
+extension WidgetSnapshot {
+    /// False once the UTC billing month has moved on: the totals are then last month's, not "this month".
+    func isCurrentPeriod(now: Date) -> Bool {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM"
+        return formatter.string(from: now) == period
+    }
+    /// Forecasts only apply to the month they were computed for.
+    func currentForecasts(now: Date) -> [Money] { isCurrentPeriod(now: now) ? forecasts : [] }
+}
+
 struct SnapshotCache {
     static let key = "widget.snapshot"
     private let defaults: UserDefaults?
