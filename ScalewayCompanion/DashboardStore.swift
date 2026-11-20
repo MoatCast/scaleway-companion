@@ -5,6 +5,11 @@ import Combine
 protocol CloudService: Sendable {
     func instances(credentials: APICredentials, zone: String) async throws -> [LiveInstance]
     func spending(credentials: APICredentials, period: String) async throws -> SpendingSnapshot
+    func invoices(credentials: APICredentials) async throws -> [Invoice]
+}
+extension CloudService {
+    // Test doubles that predate invoices return none; CloudAPI implements the real call.
+    func invoices(credentials: APICredentials) async throws -> [Invoice] { [] }
 }
 extension CloudAPI: CloudService {}
 
@@ -31,6 +36,8 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var history: [String: SpendingSnapshot] = [:]
     @Published private(set) var historyErrors: [String: String] = [:]
     @Published private(set) var historyBusy = false
+    @Published private(set) var invoices: [Invoice]?
+    @Published private(set) var invoicesError: String?
     private var historyRequested = false
     private var credentials: APICredentials?
     private var committing = false
@@ -126,6 +133,7 @@ final class DashboardStore: ObservableObject {
         credentials = candidate; connected = true; restoring = false
         instances = []; spending = nil; projectID = ""; zone = ""; search = ""; statusFilter = ""
         history = [:]; historyErrors = [:]; historyBusy = false; historyRequested = false
+        invoices = nil; invoicesError = nil
         successfulZones = []; failedZones = [:]; zoneUpdatedAt = [:]
         refreshedAt = nil; spendingFetchedAt = nil; selectedPeriod = Self.billingPeriod(now: now())
         instanceError = nil; spendingError = nil; connectionError = nil
@@ -226,6 +234,18 @@ final class DashboardStore: ObservableObject {
         guard generation == attempt else { return }
         historyBusy = false
     }
+    func loadInvoices() async {
+        guard let credentials else { return }
+        let attempt = generation
+        do {
+            let values = try await api.invoices(credentials: credentials)
+            guard generation == attempt else { return }
+            invoices = values; invoicesError = nil
+        } catch {
+            guard generation == attempt, !(error is CancellationError) else { return }
+            invoicesError = ((error as? APIError) ?? .network).localizedDescription
+        }
+    }
     func disconnect() async {
         guard !committing else { return }
         generation = UUID(); busy = true; historyBusy = false
@@ -234,6 +254,7 @@ final class DashboardStore: ObservableObject {
             credentials = nil; connected = false; restoring = false
             instances = []; spending = nil; projectID = ""; zone = ""; search = ""; statusFilter = ""
             history = [:]; historyErrors = [:]; historyRequested = false
+            invoices = nil; invoicesError = nil
             successfulZones = []; failedZones = [:]; zoneUpdatedAt = [:]
             refreshedAt = nil; spendingFetchedAt = nil
             instanceError = nil; spendingError = nil; connectionError = nil

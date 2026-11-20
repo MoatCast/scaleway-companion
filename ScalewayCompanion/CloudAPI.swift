@@ -131,7 +131,7 @@ struct CloudAPI: Sendable {
         return (data, http)
     }
 
-    private func get<T: Decodable>(_ type: T.Type, credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (T, HTTPURLResponse) {
+    func get<T: Decodable>(_ type: T.Type, credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (T, HTTPURLResponse) {
         do {
             let request = try Self.request(credentials: credentials, path: path, query: query)
             let (data, response) = try await transport(request)

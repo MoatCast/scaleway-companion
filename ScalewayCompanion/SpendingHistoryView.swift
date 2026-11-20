@@ -63,6 +63,7 @@ struct SpendingHistoryView: View {
             }
             Text("Estimated consumption, excluding tax. Charges can be delayed. Discounts and credits are not deducted here; this is not a final invoice.")
                 .font(.footnote).foregroundStyle(Theme.muted)
+            InvoicesEntry(store: store).padding(.top, 8)
         }
         .task { await store.loadHistory() }
     }
