@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import SwiftUI
+import WidgetKit
 
 struct DashboardView: View {
     @StateObject private var store = DashboardStore()
@@ -18,8 +19,17 @@ struct DashboardView: View {
             }
         }
         .task(id: demo) { if !demo && store.restoring { await store.restore() } }
+        .onAppear {
+            // Foreground refreshes can cross a threshold too; the background task is not guaranteed to run.
+            store.onSnapshotChange = { [weak store] in
+                WidgetCenter.shared.reloadAllTimelines()
+                guard let store, let spending = store.spending, let organization = store.organization else { return }
+                Task { await BudgetMonitor.evaluate(totals: BillingSummary.totals(spending.items), period: spending.period, organization: organization) }
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active && !demo { Task { await store.resume() } }
+            if phase == .background { BudgetMonitor.schedule() }
         }
     }
 }
@@ -39,6 +49,7 @@ struct ConnectionView: View {
             Form {
                 if store.connected {
                     ConnectedAccountSections(store: store)
+                    BudgetSettingsSection(store: store)
                 } else {
                     Section {
                         VStack(alignment: .leading, spacing: 12) {

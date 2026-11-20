@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
+    <key>CCAppGroup</key><string>$(APP_GROUP_ID)</string>
     <key>CFBundleDisplayName</key><string>Cloud Companion</string>
     <key>CFBundleURLTypes</key><array><dict>
         <key>CFBundleURLName</key><string>Browser sign-in sentinel</string>
@@ -8,6 +9,8 @@
         <key>CFBundleTypeRole</key><string>Editor</string>
     </dict></array>
     <key>ITSAppUsesNonExemptEncryption</key><false/>
+    <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>$(APP_BUNDLE_ID).budget</string></array>
+    <key>UIBackgroundModes</key><array><string>fetch</string></array>
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
 </dict></plist>

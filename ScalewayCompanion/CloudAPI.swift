@@ -67,7 +67,19 @@ struct Consumption: Decodable, Sendable {
     let value: APIMoney
     let projectID: String
     let category: String
-    enum CodingKeys: String, CodingKey { case value, projectID = "project_id", category = "category_name" }
+    let resourceName: String
+    let productName: String
+    enum CodingKeys: String, CodingKey {
+        case value, projectID = "project_id", category = "category_name", resourceName = "resource_name", productName = "product_name"
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        value = try c.decode(APIMoney.self, forKey: .value)
+        projectID = try c.decode(String.self, forKey: .projectID)
+        category = try c.decode(String.self, forKey: .category)
+        resourceName = try c.decodeIfPresent(String.self, forKey: .resourceName) ?? ""
+        productName = try c.decodeIfPresent(String.self, forKey: .productName) ?? ""
+    }
 }
 struct SpendingSnapshot: Sendable {
     let items: [Consumption]
@@ -119,7 +131,14 @@ struct CloudAPI: Sendable {
         return (data, http)
     }
 
-    private func get<T: Decodable>(_ type: T.Type, credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (T, HTTPURLResponse) {
+    func get<T: Decodable>(_ type: T.Type, credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (T, HTTPURLResponse) {
+        let (data, response) = try await fetch(credentials: credentials, path: path, query: query)
+        do { return (try JSONDecoder().decode(type, from: data), response) }
+        catch { throw APIError.invalidResponse }
+    }
+
+    /// Authenticated GET with the fixed-host, status and size checks; returns the raw body.
+    func fetch(credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {
         do {
             let request = try Self.request(credentials: credentials, path: path, query: query)
             let (data, response) = try await transport(request)
@@ -133,8 +152,7 @@ struct CloudAPI: Sendable {
             default: throw APIError.server(response.statusCode)
             }
             guard data.count <= 20_000_000 else { throw APIError.invalidResponse }
-            do { return (try JSONDecoder().decode(type, from: data), response) }
-            catch { throw APIError.invalidResponse }
+            return (data, response)
         } catch is CancellationError { throw CancellationError() }
         catch let error as APIError { throw error }
         catch { throw APIError.network }

@@ -7,8 +7,8 @@
     <key>NSPrivacyAccessedAPITypes</key><array>
         <dict>
             <key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryUserDefaults</string>
-            <!-- CA92.1: appearance preferences and setup recovery record, read only by this app. -->
-            <key>NSPrivacyAccessedAPITypeReasons</key><array><string>CA92.1</string></array>
+            <!-- CA92.1: appearance and setup recovery, this app only. 1C8F.1: App Group snapshot read by the app's own widgets. -->
+            <key>NSPrivacyAccessedAPITypeReasons</key><array><string>CA92.1</string><string>1C8F.1</string></array>
         </dict>
     </array>
 </dict></plist>

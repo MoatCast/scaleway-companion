@@ -5,6 +5,13 @@ import Combine
 protocol CloudService: Sendable {
     func instances(credentials: APICredentials, zone: String) async throws -> [LiveInstance]
     func spending(credentials: APICredentials, period: String) async throws -> SpendingSnapshot
+    func invoices(credentials: APICredentials) async throws -> [Invoice]
+    func invoicePDF(credentials: APICredentials, id: String) async throws -> URL
+}
+extension CloudService {
+    // Test doubles that predate invoices return none; CloudAPI implements the real call.
+    func invoices(credentials: APICredentials) async throws -> [Invoice] { [] }
+    func invoicePDF(credentials: APICredentials, id: String) async throws -> URL { throw APIError.invalidResponse }
 }
 extension CloudAPI: CloudService {}
 
@@ -31,6 +38,8 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var history: [String: SpendingSnapshot] = [:]
     @Published private(set) var historyErrors: [String: String] = [:]
     @Published private(set) var historyBusy = false
+    @Published private(set) var invoices: [Invoice]?
+    @Published private(set) var invoicesError: String?
     private var historyRequested = false
     private var credentials: APICredentials?
     private var committing = false
@@ -38,6 +47,10 @@ final class DashboardStore: ObservableObject {
     private var generation = UUID()
     private let api: any CloudService
     private let vault: any CredentialVault
+    private let cache: SnapshotCache
+    let budget: BudgetStore
+    /// Called after the widget snapshot changes; the app target reloads widget timelines here.
+    var onSnapshotChange: (@MainActor () -> Void)?
     private let now: @Sendable () -> Date
     var organization: String? { credentials?.organization }
     var organizationName: String? { credentials?.organizationName }
@@ -71,11 +84,12 @@ final class DashboardStore: ObservableObject {
             return MonthlyAmount(period: period, amount: amount)
         }
     }
-    init(api: any CloudService = CloudAPI(), vault: any CredentialVault = KeychainCredentials(), now: @escaping @Sendable () -> Date = { Date() }) {
-        self.api = api; self.vault = vault; self.now = now
+    init(api: any CloudService = CloudAPI(), vault: any CredentialVault = KeychainCredentials(), cache: SnapshotCache = .shared,
+         budget: BudgetStore = BudgetStore(), now: @escaping @Sendable () -> Date = { Date() }) {
+        self.api = api; self.vault = vault; self.cache = cache; self.budget = budget; self.now = now
         selectedPeriod = Self.billingPeriod(now: now())
     }
-    static func billingPeriod(now: Date = Date()) -> String {
+    nonisolated static func billingPeriod(now: Date = Date()) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -83,7 +97,7 @@ final class DashboardStore: ObservableObject {
         formatter.dateFormat = "yyyy-MM"
         return formatter.string(from: now)
     }
-    static func billingPeriods(now: Date = Date()) -> [String] {
+    nonisolated static func billingPeriods(now: Date = Date()) -> [String] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let month = calendar.dateInterval(of: .month, for: now)!.start
@@ -126,6 +140,8 @@ final class DashboardStore: ObservableObject {
         credentials = candidate; connected = true; restoring = false
         instances = []; spending = nil; projectID = ""; zone = ""; search = ""; statusFilter = ""
         history = [:]; historyErrors = [:]; historyBusy = false; historyRequested = false
+        invoices = nil; invoicesError = nil
+        clearSnapshot()
         successfulZones = []; failedZones = [:]; zoneUpdatedAt = [:]
         refreshedAt = nil; spendingFetchedAt = nil; selectedPeriod = Self.billingPeriod(now: now())
         instanceError = nil; spendingError = nil; connectionError = nil
@@ -187,6 +203,7 @@ final class DashboardStore: ObservableObject {
         }
         if !periods.contains(selectedPeriod) { selectedPeriod = period }
         refreshedAt = stamp; busy = false
+        writeSnapshot()
         if historyRequested { await loadHistory(force: true) }
     }
     func loadHistory(force: Bool = false) async {
@@ -226,6 +243,39 @@ final class DashboardStore: ObservableObject {
         guard generation == attempt else { return }
         historyBusy = false
     }
+    func loadInvoices() async {
+        guard let credentials else { return }
+        let attempt = generation
+        do {
+            let values = try await api.invoices(credentials: credentials)
+            guard generation == attempt else { return }
+            invoices = values; invoicesError = nil
+        } catch {
+            guard generation == attempt, !(error is CancellationError) else { return }
+            invoicesError = ((error as? APIError) ?? .network).localizedDescription
+        }
+    }
+    func invoicePDF(id: String) async throws -> URL {
+        guard let credentials else { throw APIError.invalidCredentials }
+        return try await api.invoicePDF(credentials: credentials, id: id)
+    }
+    private func writeSnapshot() {
+        guard connected, let credentials, let spending else { return }
+        let totals = BillingSummary.totals(spending.items)
+        let haveInstances = !zoneUpdatedAt.isEmpty
+        cache.save(WidgetSnapshot(
+            organization: credentials.organization, organizationName: credentials.organizationName, period: spending.period,
+            totals: totals.map { Money(currency: $0.currency, amount: $0.amount) },
+            forecasts: totals.compactMap { total in
+                Forecast.monthEnd(total: total.amount, currency: total.currency, period: spending.period, now: now()).map { Money(currency: total.currency, amount: $0) }
+            },
+            running: haveInstances ? instances.filter { $0.state == "running" }.count : nil,
+            stopped: haveInstances ? instances.filter { $0.state != "running" }.count : nil,
+            updatedAt: spendingFetchedAt ?? now()))
+        onSnapshotChange?()
+    }
+    // Account change: the old Organization's widget numbers and budget must not carry over.
+    private func clearSnapshot() { cache.clear(); budget.clear(); onSnapshotChange?() }
     func disconnect() async {
         guard !committing else { return }
         generation = UUID(); busy = true; historyBusy = false
@@ -234,6 +284,8 @@ final class DashboardStore: ObservableObject {
             credentials = nil; connected = false; restoring = false
             instances = []; spending = nil; projectID = ""; zone = ""; search = ""; statusFilter = ""
             history = [:]; historyErrors = [:]; historyRequested = false
+            invoices = nil; invoicesError = nil
+            clearSnapshot()
             successfulZones = []; failedZones = [:]; zoneUpdatedAt = [:]
             refreshedAt = nil; spendingFetchedAt = nil
             instanceError = nil; spendingError = nil; connectionError = nil
