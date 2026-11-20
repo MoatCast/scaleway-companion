@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
     <key>CCAppGroup</key><string>$(APP_GROUP_ID)</string>
-    <key>CFBundleDisplayName</key><string>Companion</string>
+    <key>CFBundleDisplayName</key><string>Scaleway Comp.</string>
     <key>CFBundleURLTypes</key><array><dict>
         <key>CFBundleURLName</key><string>Browser sign-in sentinel</string>
         <key>CFBundleURLSchemes</key><array><string>scalewaycompanion</string></array>
