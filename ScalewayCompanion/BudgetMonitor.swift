@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import BackgroundTasks
 import UserNotifications
+import WidgetKit
 
 /// Best-effort budget alerts: iOS decides when the refresh task runs, and billing data can lag.
 enum BudgetMonitor {
@@ -34,7 +35,21 @@ enum BudgetMonitor {
               let credentials = try? await KeychainCredentials().load() else { return }
         let period = DashboardStore.billingPeriod()
         guard let snapshot = try? await CloudAPI().spending(credentials: credentials, period: period), !Task.isCancelled else { return }
-        await evaluate(totals: BillingSummary.totals(snapshot.items), period: period, organization: credentials.organization)
+        let totals = BillingSummary.totals(snapshot.items)
+        updateWidgetSnapshot(totals: totals, period: period, organization: credentials.organization)
+        await evaluate(totals: totals, period: period, organization: credentials.organization)
+    }
+    /// Keeps widget spend current between app launches; Instance counts stay as last seen in the app.
+    private static func updateWidgetSnapshot(totals: [CurrencyAmount], period: String, organization: String) {
+        let cache = SnapshotCache.shared
+        guard let old = cache.load(), old.organization == organization else { return }
+        let now = Date()
+        cache.save(WidgetSnapshot(
+            organization: organization, organizationName: old.organizationName, period: period,
+            totals: totals.map { Money(currency: $0.currency, amount: $0.amount) },
+            forecasts: totals.compactMap { t in Forecast.monthEnd(total: t.amount, currency: t.currency, period: period, now: now).map { Money(currency: t.currency, amount: $0) } },
+            running: old.running, stopped: old.stopped, updatedAt: now))
+        WidgetCenter.shared.reloadAllTimelines()
     }
     /// Shared by the background task and foreground refreshes.
     @MainActor static func evaluate(totals: [CurrencyAmount], period: String, organization: String) async {
