@@ -63,4 +63,36 @@ extension CloudAPI {
         }
         throw APIError.invalidResponse
     }
+
+    /// Downloads an invoice PDF to the temporary directory and returns its file URL.
+    /// Accepts Scaleway's JSON file envelope (base64 content) or a raw PDF body.
+    func invoicePDF(credentials: APICredentials, id: String) async throws -> URL {
+        guard UUID(uuidString: id) != nil else { throw APIError.invalidResponse }
+        let (data, response) = try await fetch(credentials: credentials, path: "/billing/v2beta1/invoices/\(id)/download",
+                                               query: [.init(name: "file_type", value: "pdf")])
+        let pdf = Data("%PDF".utf8)
+        let name: String, bytes: Data
+        if data.starts(with: pdf) || response.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("application/pdf") == true {
+            name = "invoice-\(id.prefix(8))"; bytes = data
+        } else {
+            struct File: Decodable { let name: String?; let content_type: String; let content: String }
+            guard let file = try? JSONDecoder().decode(File.self, from: data), file.content_type == "application/pdf",
+                  let decoded = Data(base64Encoded: file.content) else { throw APIError.invalidResponse }
+            name = file.name ?? "invoice-\(id.prefix(8))"; bytes = decoded
+        }
+        guard bytes.starts(with: pdf) else { throw APIError.invalidResponse }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(Self.safePDFName(name))
+        do { try bytes.write(to: url, options: .atomic) } catch { throw APIError.invalidResponse }
+        return url
+    }
+
+    /// Keeps only the last path component and safe characters; always ends in ".pdf".
+    static func safePDFName(_ raw: String) -> String {
+        let base = (raw as NSString).lastPathComponent
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        var cleaned = String(String.UnicodeScalarView(base.unicodeScalars.filter { allowed.contains($0) && $0.isASCII }))
+        while cleaned.hasPrefix(".") { cleaned.removeFirst() }
+        if cleaned.lowercased().hasSuffix(".pdf") { cleaned.removeLast(4) }
+        return (cleaned.isEmpty ? "invoice" : String(cleaned.prefix(80))) + ".pdf"
+    }
 }

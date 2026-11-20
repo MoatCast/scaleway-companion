@@ -6,10 +6,12 @@ protocol CloudService: Sendable {
     func instances(credentials: APICredentials, zone: String) async throws -> [LiveInstance]
     func spending(credentials: APICredentials, period: String) async throws -> SpendingSnapshot
     func invoices(credentials: APICredentials) async throws -> [Invoice]
+    func invoicePDF(credentials: APICredentials, id: String) async throws -> URL
 }
 extension CloudService {
     // Test doubles that predate invoices return none; CloudAPI implements the real call.
     func invoices(credentials: APICredentials) async throws -> [Invoice] { [] }
+    func invoicePDF(credentials: APICredentials, id: String) async throws -> URL { throw APIError.invalidResponse }
 }
 extension CloudAPI: CloudService {}
 
@@ -245,6 +247,10 @@ final class DashboardStore: ObservableObject {
             guard generation == attempt, !(error is CancellationError) else { return }
             invoicesError = ((error as? APIError) ?? .network).localizedDescription
         }
+    }
+    func invoicePDF(id: String) async throws -> URL {
+        guard let credentials else { throw APIError.invalidCredentials }
+        return try await api.invoicePDF(credentials: credentials, id: id)
     }
     func disconnect() async {
         guard !committing else { return }

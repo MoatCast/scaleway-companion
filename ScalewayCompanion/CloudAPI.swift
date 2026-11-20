@@ -132,6 +132,13 @@ struct CloudAPI: Sendable {
     }
 
     func get<T: Decodable>(_ type: T.Type, credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (T, HTTPURLResponse) {
+        let (data, response) = try await fetch(credentials: credentials, path: path, query: query)
+        do { return (try JSONDecoder().decode(type, from: data), response) }
+        catch { throw APIError.invalidResponse }
+    }
+
+    /// Authenticated GET with the fixed-host, status and size checks; returns the raw body.
+    func fetch(credentials: APICredentials, path: String, query: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {
         do {
             let request = try Self.request(credentials: credentials, path: path, query: query)
             let (data, response) = try await transport(request)
@@ -145,8 +152,7 @@ struct CloudAPI: Sendable {
             default: throw APIError.server(response.statusCode)
             }
             guard data.count <= 20_000_000 else { throw APIError.invalidResponse }
-            do { return (try JSONDecoder().decode(type, from: data), response) }
-            catch { throw APIError.invalidResponse }
+            return (data, response)
         } catch is CancellationError { throw CancellationError() }
         catch let error as APIError { throw error }
         catch { throw APIError.network }

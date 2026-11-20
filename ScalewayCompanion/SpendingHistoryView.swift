@@ -146,7 +146,8 @@ private struct ResourceRow: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(resource.name).lineLimit(1).truncationMode(.middle)
-                if !resource.product.isEmpty { Text(resource.product).font(.footnote).foregroundStyle(Theme.muted) }
+                // Scaleway resource names often start with the product (e.g. "DEV1-S - fr-par-1"); skip the repeat.
+                if !resource.product.isEmpty && !resource.name.localizedCaseInsensitiveContains(resource.product) { Text(resource.product).font(.footnote).foregroundStyle(Theme.muted) }
             }
             Spacer(minLength: 8)
             Text(resource.amount.formatted(.currency(code: resource.currency))).monospacedDigit()

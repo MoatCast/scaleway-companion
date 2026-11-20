@@ -44,7 +44,7 @@ struct InvoicesView: View {
                 } else {
                     Section {
                         ForEach(invoices) { invoice in
-                            NavigationLink { InvoiceDetailView(invoice: invoice) } label: { InvoiceRow(invoice: invoice) }
+                            NavigationLink { InvoiceDetailView(store: store, invoice: invoice) } label: { InvoiceRow(invoice: invoice) }
                         }
                     } footer: { Text("Amounts include tax. Open an invoice to see discounts or share the PDF.") }
                 }
@@ -92,7 +92,12 @@ struct InvoiceBadge: View {
 }
 
 struct InvoiceDetailView: View {
+    @ObservedObject var store: DashboardStore
     let invoice: Invoice
+    @State private var pdf: SharedFile?
+    @State private var tempFile: URL?
+    @State private var downloading = false
+    @State private var downloadError: String?
     @Environment(\.themePalette) private var palette
     var body: some View {
         List {
@@ -116,9 +121,39 @@ struct InvoiceDetailView: View {
                 row("Tax", invoice.totalTax)
                 row("Total", invoice.totalTaxed).fontWeight(.semibold)
             }
+            Section {
+                Button {
+                    Task { await download() }
+                } label: {
+                    HStack { Label("Share PDF", systemImage: "square.and.arrow.up"); if downloading { Spacer(); ProgressView() } }
+                }
+                .buttonStyle(SolidPrimaryButton()).disabled(downloading).accessibilityIdentifier("shareInvoicePDF")
+                .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+                if let downloadError {
+                    Label(downloadError, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
+                }
+            }
+        }
+        .sheet(item: $pdf, onDismiss: removeTempFile) { file in
+            ShareSheet(url: file.url).presentationDetents([.medium, .large])
         }
         .scrollContentBackground(.hidden).background(palette.canvas)
         .navigationTitle(InvoiceText.month(invoice)).navigationBarTitleDisplayMode(.large)
+        .onDisappear(perform: removeTempFile)
+    }
+    private func download() async {
+        downloading = true; downloadError = nil
+        defer { downloading = false }
+        do {
+            let url = try await store.invoicePDF(id: invoice.id)
+            tempFile = url; pdf = SharedFile(url: url)
+        }
+        catch { downloadError = ((error as? APIError) ?? .network).localizedDescription }
+    }
+    // The sheet clears `pdf` before onDismiss runs, so the path is kept separately.
+    private func removeTempFile() {
+        if let tempFile { try? FileManager.default.removeItem(at: tempFile) }
+        tempFile = nil
     }
     private var issuedLine: String {
         guard let issued = invoice.issuedDate else { return "Total including tax" }
@@ -142,4 +177,13 @@ enum InvoiceText {
         if let due = invoice.dueDate { return "Due \(due.formatted(.dateTime.day().month(.abbreviated)))" }
         return invoice.state.isEmpty ? "Issued" : invoice.state.capitalized
     }
+}
+
+struct SharedFile: Identifiable { let url: URL; var id: URL { url } }
+
+/// UIKit share sheet for a downloaded file; SwiftUI's ShareLink needs the file before the tap.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: [url], applicationActivities: nil) }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

@@ -49,6 +49,61 @@ final class InvoicesTests: XCTestCase {
         } catch { XCTAssertEqual(error as? APIError, .invalidResponse) }
     }
 
+    private let invoiceID = "22222222-2222-4222-8222-222222222222"
+    private func pdfJSON(name: String, type: String = "application/pdf", bytes: String = "%PDF-1.7 fixture") -> String {
+        #"{"name":"\#(name)","content_type":"\#(type)","content":"\#(Data(bytes.utf8).base64EncodedString())"}"#
+    }
+
+    func testInvoicePDFWritesDecodedFileToTemporaryDirectory() async throws {
+        let transport = FixtureTransport(responses: [(pdfJSON(name: "invoice-4021856.pdf"), [:], 200)])
+        let url = try await CloudAPI(transport: { try await transport.send($0) })
+            .invoicePDF(credentials: APICredentials(secret: "fixture", organization: organization), id: invoiceID)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertTrue(try Data(contentsOf: url).starts(with: Data("%PDF".utf8)))
+        XCTAssertEqual(url.lastPathComponent, "invoice-4021856.pdf")
+        let request = await transport.requests.first
+        XCTAssertEqual(request?.url?.path, "/billing/v2beta1/invoices/\(invoiceID)/download")
+        XCTAssertTrue(URLComponents(url: request!.url!, resolvingAgainstBaseURL: false)!.queryItems!.contains(URLQueryItem(name: "file_type", value: "pdf")))
+    }
+
+    func testInvoicePDFRejectsNonUUIDBeforeAnyRequest() async throws {
+        let transport = FixtureTransport(responses: [])
+        do {
+            _ = try await CloudAPI(transport: { try await transport.send($0) })
+                .invoicePDF(credentials: APICredentials(secret: "fixture", organization: organization), id: "../../etc")
+            XCTFail("expected rejection")
+        } catch { XCTAssertEqual(error as? APIError, .invalidResponse) }
+        let count = await transport.requestCount()
+        XCTAssertEqual(count, 0)
+    }
+
+    func testInvoicePDFRejectsWrongContentType() async throws {
+        let transport = FixtureTransport(responses: [(pdfJSON(name: "x.html", type: "text/html", bytes: "<html>"), [:], 200)])
+        do {
+            _ = try await CloudAPI(transport: { try await transport.send($0) })
+                .invoicePDF(credentials: APICredentials(secret: "fixture", organization: organization), id: invoiceID)
+            XCTFail("expected rejection")
+        } catch { XCTAssertEqual(error as? APIError, .invalidResponse) }
+    }
+
+    func testInvoicePDFSanitizesTraversalInFileName() async throws {
+        let transport = FixtureTransport(responses: [(pdfJSON(name: "../../x"), [:], 200)])
+        let url = try await CloudAPI(transport: { try await transport.send($0) })
+            .invoicePDF(credentials: APICredentials(secret: "fixture", organization: organization), id: invoiceID)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(url.lastPathComponent, "x.pdf")
+        XCTAssertTrue(url.standardizedFileURL.path.hasPrefix(FileManager.default.temporaryDirectory.standardizedFileURL.path))
+    }
+
+    func testInvoicePDFAcceptsRawPDFBody() async throws {
+        let transport = FixtureTransport(responses: [("%PDF-1.7 raw", ["Content-Type": "application/pdf"], 200)])
+        let url = try await CloudAPI(transport: { try await transport.send($0) })
+            .invoicePDF(credentials: APICredentials(secret: "fixture", organization: organization), id: invoiceID)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertTrue(try Data(contentsOf: url).starts(with: Data("%PDF".utf8)))
+        XCTAssertEqual(url.pathExtension, "pdf")
+    }
+
     @MainActor
     func testDisconnectClearsLoadedInvoices() async throws {
         let store = DashboardStore(api: InvoiceService(), vault: MemoryVault())
