@@ -48,6 +48,7 @@ final class DashboardStore: ObservableObject {
     private let api: any CloudService
     private let vault: any CredentialVault
     private let cache: SnapshotCache
+    let budget: BudgetStore
     /// Called after the widget snapshot changes; the app target reloads widget timelines here.
     var onSnapshotChange: (@MainActor () -> Void)?
     private let now: @Sendable () -> Date
@@ -84,8 +85,8 @@ final class DashboardStore: ObservableObject {
         }
     }
     init(api: any CloudService = CloudAPI(), vault: any CredentialVault = KeychainCredentials(), cache: SnapshotCache = .shared,
-         now: @escaping @Sendable () -> Date = { Date() }) {
-        self.api = api; self.vault = vault; self.cache = cache; self.now = now
+         budget: BudgetStore = BudgetStore(), now: @escaping @Sendable () -> Date = { Date() }) {
+        self.api = api; self.vault = vault; self.cache = cache; self.budget = budget; self.now = now
         selectedPeriod = Self.billingPeriod(now: now())
     }
     nonisolated static func billingPeriod(now: Date = Date()) -> String {
@@ -273,7 +274,8 @@ final class DashboardStore: ObservableObject {
             updatedAt: spendingFetchedAt ?? now()))
         onSnapshotChange?()
     }
-    private func clearSnapshot() { cache.clear(); onSnapshotChange?() }
+    // Account change: the old Organization's widget numbers and budget must not carry over.
+    private func clearSnapshot() { cache.clear(); budget.clear(); onSnapshotChange?() }
     func disconnect() async {
         guard !committing else { return }
         generation = UUID(); busy = true; historyBusy = false

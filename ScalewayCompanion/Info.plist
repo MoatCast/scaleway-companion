@@ -9,6 +9,8 @@
         <key>CFBundleTypeRole</key><string>Editor</string>
     </dict></array>
     <key>ITSAppUsesNonExemptEncryption</key><false/>
+    <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>$(APP_BUNDLE_ID).budget</string></array>
+    <key>UIBackgroundModes</key><array><string>fetch</string></array>
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
 </dict></plist>

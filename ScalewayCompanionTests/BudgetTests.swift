@@ -41,6 +41,20 @@ final class BudgetTests: XCTestCase {
         XCTAssertNil(check(500, state: nil, settings: BudgetSettings(enabled: false, amount: 200, currency: "EUR", organization: org)).alertPercent)
         XCTAssertNil(check(500, state: nil, settings: BudgetSettings(enabled: true, amount: 0, currency: "EUR", organization: org)).alertPercent)
     }
+    @MainActor
+    func testDisconnectAndReplacementClearBudget() async throws {
+        let budget = BudgetStore(defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
+        let store = DashboardStore(api: RefinementService(), vault: MemoryVault(), cache: SnapshotCache(defaults: nil), budget: budget)
+        await store.connect(secret: "fixture", organization: org)
+        budget.settings = settings
+        try await store.adoptProvisionedConnection(APICredentials(secret: "new", organization: "22222222-2222-4222-8222-222222222222"))
+        XCTAssertNil(budget.settings)
+        budget.settings = settings
+        budget.state = BudgetState(period: "2026-11", notifiedPercent: 80)
+        await store.disconnect()
+        XCTAssertNil(budget.settings)
+        XCTAssertNil(budget.state)
+    }
     func testBudgetStorePersistsAndClears() {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let store = BudgetStore(defaults: defaults)

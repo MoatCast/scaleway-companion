@@ -4,6 +4,7 @@ import SwiftUI
 
 @main
 struct ScalewayCompanionApp: App {
+    init() { BudgetMonitor.register() }
     var body: some Scene {
         WindowGroup {
             DashboardView()
