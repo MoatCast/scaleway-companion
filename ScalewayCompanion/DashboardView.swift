@@ -81,6 +81,9 @@ struct DemoDashboardView: View {
             Text(Spending.euros(value.total)).font(.system(size: amountSize, weight: .semibold)).monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("spendingTotal")
             Text("Estimated consumption · excl. tax · sample period").font(.footnote).foregroundStyle(.secondary)
+            if let forecast = Forecast.monthEnd(total: Decimal(value.total) / 100, currency: "EUR", period: DashboardStore.billingPeriod(), now: Date()) {
+                ForecastLine(amount: forecast, currency: "EUR")
+            }
             ConsumptionStrip(amounts: [Decimal(value.compute), Decimal(value.storage), Decimal(value.network)]).padding(.vertical, 4)
             if showLink {
                 Button { tab = 2 } label: {

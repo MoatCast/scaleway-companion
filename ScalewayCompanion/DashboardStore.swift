@@ -75,7 +75,7 @@ final class DashboardStore: ObservableObject {
         self.api = api; self.vault = vault; self.now = now
         selectedPeriod = Self.billingPeriod(now: now())
     }
-    static func billingPeriod(now: Date = Date()) -> String {
+    nonisolated static func billingPeriod(now: Date = Date()) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -83,7 +83,7 @@ final class DashboardStore: ObservableObject {
         formatter.dateFormat = "yyyy-MM"
         return formatter.string(from: now)
     }
-    static func billingPeriods(now: Date = Date()) -> [String] {
+    nonisolated static func billingPeriods(now: Date = Date()) -> [String] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let month = calendar.dateInterval(of: .month, for: now)!.start

@@ -87,6 +87,11 @@ struct LiveDashboardView: View {
                         .accessibilityIdentifier("liveSpendingTotal").fixedSize(horizontal: false, vertical: true)
                 }
                 Text("Estimated consumption · excl. tax").font(.footnote).foregroundStyle(.secondary)
+                ForEach(values) { value in
+                    if let forecast = Forecast.monthEnd(total: value.amount, currency: value.currency, period: snapshot.period, now: Date()) {
+                        ForecastLine(amount: forecast, currency: value.currency)
+                    }
+                }
                 if values.count == 1 {
                     ConsumptionStrip(amounts: BillingSummary.categories(snapshot.items, project: store.projectID).map(\.amount)).padding(.vertical, 4)
                 }
@@ -265,5 +270,31 @@ struct InlineFailure: View {
             if let lastSuccess { Text("Last successful update \(lastSuccess.formatted(date: .abbreviated, time: .shortened)). Values shown are stale.").font(.footnote).foregroundStyle(.secondary) }
             Button("Retry", action: retry).frame(minHeight: 44)
         }.padding(.vertical, 8)
+    }
+}
+
+struct ForecastLine: View {
+    let amount: Decimal
+    let currency: String
+    @Environment(\.themePalette) private var palette
+    private var monthEnd: String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let end = calendar.dateInterval(of: .month, for: Date())!.end.addingTimeInterval(-1)
+        var style = Date.FormatStyle.dateTime.day().month(.abbreviated)
+        style.timeZone = calendar.timeZone
+        return end.formatted(style)
+    }
+    var body: some View {
+        // Whole units: "about €85" reads as an estimate; cents would imply false precision.
+        let rounded = amount.formatted(.currency(code: currency).precision(.fractionLength(0)))
+        Label {
+            Text("On track for about **\(rounded)** by \(monthEnd)")
+        } icon: {
+            Image(systemName: "chart.line.uptrend.xyaxis").foregroundStyle(palette.accent)
+        }
+        .font(.subheadline)
+        .accessibilityLabel("Estimate: on track for about \(rounded) by \(monthEnd)")
+        .accessibilityIdentifier("monthEndForecast")
     }
 }
