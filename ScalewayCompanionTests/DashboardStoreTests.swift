@@ -43,20 +43,22 @@ final class DashboardStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(APICredentials.self, from: legacy)
         XCTAssertEqual(decoded.setupName, "Companion-x")
         XCTAssertNil(decoded.organizationName)
-        XCTAssertNil(decoded.projectNames)
+        XCTAssertNil(decoded.projects)
         XCTAssertNil(decoded.connectedAt)
 
         let vault = MemoryVault()
         let store = DashboardStore(api: PartialService(), vault: vault)
         let date = Date(timeIntervalSince1970: 1_795_000_000)
         try await store.adoptProvisionedConnection(APICredentials(secret: "new-key", organization: organization, setupName: "attempt",
-            organizationName: "Northwind", projectNames: ["Personal", "Production"], connectedAt: date))
+            organizationName: "Northwind", projects: ["p2": "Production", "p1": "Personal"], connectedAt: date))
         XCTAssertEqual(store.organizationName, "Northwind")
         XCTAssertEqual(store.projectNames, ["Personal", "Production"])
+        XCTAssertEqual(store.projectName("p2"), "Production")
+        XCTAssertEqual(store.projectName("unknown-id"), "unknown-id")
         XCTAssertEqual(store.connectedAt, date)
         let saved = try await vault.load()
         XCTAssertEqual(saved?.organizationName, "Northwind")
-        XCTAssertEqual(saved?.projectNames, ["Personal", "Production"])
+        XCTAssertEqual(saved?.projects?["p1"], "Personal")
     }
     func testFailedReplacementPreservesExistingKeyAndData() async throws {
         let vault = FailingReplacementVault()

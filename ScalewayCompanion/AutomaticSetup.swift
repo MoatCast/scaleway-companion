@@ -114,7 +114,7 @@ final class AutomaticSetup: ObservableObject {
             try Task.checkCancellation()
             let candidate = try APICredentials(secret: key.secret_key, organization: receipt.organization, setupName: receipt.name,
                 organizationName: organizations.first { $0.id == receipt.organization }?.name,
-                projectNames: fresh.filter { selected.contains($0.id) }.map(\.name).sorted { $0.localizedStandardCompare($1) == .orderedAscending },
+                projects: Dictionary(fresh.filter { selected.contains($0.id) }.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }),
                 connectedAt: Date())
             phase = .verifying
             for attempt in 0...12 {

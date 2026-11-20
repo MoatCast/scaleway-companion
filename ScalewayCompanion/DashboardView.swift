@@ -6,7 +6,7 @@ struct DemoDashboardView: View {
     var onConnect: () -> Void = {}
     @State private var tab = 0
     @State private var project = Project.all
-    @State private var instances = DemoData.instances
+    private let instances = DemoData.instances
     @State private var search = ""
     @State private var status = ""
     @State private var zone = ""
@@ -68,7 +68,6 @@ struct DemoDashboardView: View {
                 else {
                     if project == .all { history }
                     categories
-                    projectSpending
                     Text("Consumption is an estimate, not a final invoice. Charges can take time to appear.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Text("Sample data · no cloud resources connected").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("demoNotice")
@@ -78,7 +77,7 @@ struct DemoDashboardView: View {
     private func spending(showLink: Bool) -> some View {
         let value = Spending.sample(for: project)
         return VStack(alignment: .leading, spacing: 8) {
-            HStack { Text("This month").font(.headline); Spacer(); Text("Nov 2026").font(.subheadline).foregroundStyle(.secondary) }
+            HStack { Text("This month").font(.headline); Spacer(); Text(BillingSummary.monthLabel(DashboardStore.billingPeriod())).font(.subheadline).foregroundStyle(.secondary) }
             Text(Spending.euros(value.total)).font(.system(size: amountSize, weight: .semibold)).monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("spendingTotal")
             Text("Estimated consumption · excl. tax · sample period").font(.footnote).foregroundStyle(.secondary)
@@ -98,14 +97,18 @@ struct DemoDashboardView: View {
                 Spacer()
                 if overview { Button("See all") { tab = 1 }.frame(minHeight: 44) }
             }
-            if values.isEmpty { Text("No matching Instances.").foregroundStyle(.secondary) }
-            ForEach(values) { instance in
-                if let index = instances.firstIndex(where: { $0.id == instance.id }) {
-                    NavigationLink { InstanceDetailView(instance: $instances[index]) } label: {
-                        CloudInstanceRow(name: instance.name, subtitle: "\(instance.type) · \(instance.city)", status: instance.running ? "Running" : "Stopped")
-                    }.buttonStyle(.plain).accessibilityIdentifier("instance-\(instance.id)")
-                    Divider()
+            if values.isEmpty {
+                ContentUnavailableView {
+                    Label("No matching Instances", systemImage: "magnifyingglass")
+                } description: { Text("Try a different search or filter.") } actions: {
+                    Button("Clear filters") { zone = ""; status = ""; search = ""; project = .all }
                 }
+            }
+            ForEach(values) { instance in
+                NavigationLink { InstanceDetailView(instance: instance) } label: {
+                    CloudInstanceRow(name: instance.name, subtitle: "\(instance.type) · \(instance.city)", status: instance.running ? "Running" : "Stopped")
+                }.buttonStyle(.plain).accessibilityIdentifier("instance-\(instance.id)")
+                Divider()
             }
         }
     }
@@ -120,7 +123,7 @@ struct DemoDashboardView: View {
         }
     }
     private var history: some View {
-        let months = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov"]
+        let months = DashboardStore.billingPeriods().map { BillingSummary.monthLabel($0, short: true) }
         let cents = [1540, 2210, 1860, 2950, 3620, 4280]
         return VStack(alignment: .leading, spacing: 12) {
             HStack { Text("Monthly history").font(.headline); Spacer(); Text("EUR").font(.caption).foregroundStyle(.secondary) }
@@ -129,18 +132,8 @@ struct DemoDashboardView: View {
                     .foregroundStyle(i == 5 ? palette.accent : palette.accent.opacity(0.25))
                     .accessibilityLabel(months[i]).accessibilityValue(Spending.euros(cents[i]))
             }.chartYScale(domain: 0...50).frame(height: 180)
-            Text("November is month-to-date · sample history").font(.caption).foregroundStyle(.secondary)
+            Text("\(BillingSummary.monthLabel(DashboardStore.billingPeriod())) is month-to-date · sample history").font(.caption).foregroundStyle(.secondary)
         }.padding(16).background(Theme.card, in: RoundedRectangle(cornerRadius: 22))
-    }
-    private var projectSpending: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("By project").font(.title2.bold())
-            ForEach([Project.production, .personal].filter { project == .all || $0 == project }) { item in
-                Button { project = item } label: {
-                    HStack { Text(item.rawValue); Spacer(); Text(Spending.euros(Spending.sample(for: item).total)).monospacedDigit() }.frame(minHeight: 44)
-                }
-            }
-        }
     }
     private var demoAccount: some View {
         NavigationStack {
@@ -167,10 +160,8 @@ struct DemoDashboardView: View {
 }
 
 struct InstanceDetailView: View {
-    @Binding var instance: CloudInstance
+    let instance: CloudInstance
     @Environment(\.themePalette) private var palette
-    @State private var action: String?
-    @State private var result: String?
 
     var body: some View {
         List {
@@ -183,33 +174,10 @@ struct InstanceDetailView: View {
                 LabeledContent("Status", value: instance.running ? "Running" : "Stopped")
                 LabeledContent("Location", value: instance.zone)
                 LabeledContent("Instance type", value: instance.type)
-                LabeledContent("Compute", value: "\(instance.cpu) vCPUs · \(instance.memoryGB) GB")
             }
-            Section {
-                if instance.running {
-                    Button("Simulate restart", systemImage: "arrow.clockwise") { action = "restart" }
-                    Button("Simulate stop", systemImage: "stop", role: .destructive) { action = "stop" }
-                } else {
-                    Button("Simulate start", systemImage: "power") { action = "start" }
-                }
-            } footer: {
-                Text("Demo controls only. No cloud resource will be changed.")
-            }
-            if let result { Text(result).font(.footnote).foregroundStyle(.secondary) }
+            Section { Text("Sample data. Read-only, like a live connection.").font(.footnote).foregroundStyle(.secondary) }
         }
         .scrollContentBackground(.hidden).background(palette.canvas)
         .navigationTitle(instance.name).navigationBarTitleDisplayMode(.large)
-        .confirmationDialog("Simulate \(action ?? "action") for \(instance.name)?", isPresented: Binding(get: { action != nil }, set: { if !$0 { action = nil } }), titleVisibility: .visible) {
-            if let action {
-                Button("Simulate \(action)", role: action == "stop" ? .destructive : nil) {
-                    instance.running = action != "stop"
-                    result = "Demo: \(action) completed."
-                    self.action = nil
-                }
-            }
-            Button("Cancel", role: .cancel) { action = nil }
-        } message: {
-            Text("This changes sample data on this device only.")
-        }
     }
 }

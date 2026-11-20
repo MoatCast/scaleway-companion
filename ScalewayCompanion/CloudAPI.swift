@@ -22,10 +22,10 @@ struct APICredentials: Codable, Equatable, Sendable {
     let setupName: String?
     // Display-only labels; optional so credentials saved by earlier versions still decode.
     var organizationName: String?
-    var projectNames: [String]?
+    var projects: [String: String]?  // project ID → name, from automatic setup
     var connectedAt: Date?
     init(secret: String, organization: String, setupName: String? = nil,
-         organizationName: String? = nil, projectNames: [String]? = nil, connectedAt: Date? = nil) throws {
+         organizationName: String? = nil, projects: [String: String]? = nil, connectedAt: Date? = nil) throws {
         // Reject control characters before trimming so pasted header injection cannot be accepted.
         guard !secret.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw APIError.invalidCredentials }
         let key = secret.trimmingCharacters(in: .whitespaces)
@@ -36,7 +36,7 @@ struct APICredentials: Codable, Equatable, Sendable {
         self.organization = org
         self.setupName = setupName
         self.organizationName = organizationName
-        self.projectNames = projectNames
+        self.projects = projects
         self.connectedAt = connectedAt
     }
 }
@@ -105,13 +105,15 @@ struct CloudAPI: Sendable {
         return request
     }
 
-    static func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    // One shared session reuses TLS connections across zone pages and months.
+    private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpShouldSetCookies = false
         configuration.urlCache = nil
         configuration.timeoutIntervalForResource = 60
-        let session = URLSession(configuration: configuration, delegate: RejectRedirects(), delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
+        return URLSession(configuration: configuration, delegate: RejectRedirects(), delegateQueue: nil)
+    }()
+    static func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         return (data, http)

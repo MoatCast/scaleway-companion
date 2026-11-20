@@ -30,30 +30,24 @@ final class DashboardUITests: XCTestCase {
         XCTAssertFalse(app.buttons["instance-api"].exists)
         app.buttons["instance-stage"].tap()
         XCTAssertEqual(app.staticTexts["instanceDetailName"].label, "staging")
-        app.buttons["Simulate start"].tap()
-        let confirmation = app.sheets["Simulate start for staging?"]
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
-        if confirmation.buttons["Cancel"].exists {
-            confirmation.buttons["Cancel"].tap()
-        } else {
-            XCTAssertTrue(app.popovers.firstMatch.exists)
-            // Tap the visible detail sheet outside the confirmation popover.
-            app.staticTexts["Status"].tap()
-        }
-        XCTAssertTrue(confirmation.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Status, Stopped"].exists)
-        app.buttons["Simulate start"].tap()
-        app.sheets.buttons["Simulate start"].tap()
-        XCTAssertTrue(app.staticTexts["Status, Running"].waitForExistence(timeout: 3))
+        // Demo detail is read-only, like a live connection.
+        XCTAssertFalse(app.buttons["Simulate start"].exists)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.tabBars.buttons["Spending"].tap()
-        XCTAssertTrue(app.staticTexts["By project"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Where it goes"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["By project"].exists)
         capture(app, name: "spending-iphone")
         app.buttons["projectPicker"].tap()
         app.buttons["All projects"].tap()
         XCTAssertTrue(app.staticTexts["Monthly history"].waitForExistence(timeout: 3))
         capture(app, name: "spending-history-iphone")
         app.tabBars.buttons["Instances"].tap()
+        XCTAssertTrue(app.buttons["instance-stage"].waitForExistence(timeout: 3))
+        let search = app.searchFields.firstMatch
+        search.tap()
+        search.typeText("no-such-server")
+        XCTAssertTrue(app.staticTexts["No matching Instances"].waitForExistence(timeout: 3))
+        app.buttons["Clear filters"].tap()
         XCTAssertTrue(app.buttons["instance-stage"].waitForExistence(timeout: 3))
     }
 

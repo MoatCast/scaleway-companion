@@ -58,10 +58,10 @@ struct LoginExperimentView: View {
         case .completed:
             Text(login.instances == .verified && login.spending == .verified ? "Experiment passed. Both API reads succeeded." : "Session verified; some API access was not verified.")
                 .accessibilityIdentifier("loginVerified")
-        case .failed(let message): Text(message).foregroundStyle(.orange).accessibilityIdentifier("loginFailed")
+        case .failed(let message): Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger).accessibilityIdentifier("loginFailed")
         case .cancelled: Text("Sign-in cancelled.").accessibilityIdentifier("loginCancelled")
-        case .timedOut: Text("Timed out without completing verification. A loaded browser page does not verify sign-in.").foregroundStyle(.orange)
-        case .redirectRejected: Text("Redirect rejection reported from the browser page. This callback is not accepted by Scaleway.").foregroundStyle(.orange)
+        case .timedOut: Label("Timed out without completing verification. A loaded browser page does not verify sign-in.", systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
+        case .redirectRejected: Label("Redirect rejection reported from the browser page. This callback is not accepted by Scaleway.", systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
         }
     }
 }

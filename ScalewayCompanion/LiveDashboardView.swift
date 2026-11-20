@@ -29,9 +29,6 @@ struct LiveDashboardView: View {
             }
             .navigationTitle(title).navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Label("Cloud Companion", systemImage: "cloud").font(.subheadline).foregroundStyle(.secondary).fixedSize()
-                }.sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Account", systemImage: "person.crop.circle") { account = true }.accessibilityIdentifier("accountButton")
                 }
@@ -58,11 +55,11 @@ struct LiveDashboardView: View {
             Menu {
                 Picker("Project", selection: $store.projectID) {
                     Text("All permitted projects").tag("")
-                    ForEach(store.projects, id: \.self) { Text($0).tag($0) }
+                    ForEach(store.projects, id: \.self) { Text(store.projectName($0)).tag($0) }
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(store.projectID.isEmpty ? "All projects" : store.projectID).lineLimit(1)
+                    Text(store.projectID.isEmpty ? "All projects" : store.projectName(store.projectID)).lineLimit(1)
                     Image(systemName: "chevron.down").font(.caption.weight(.semibold))
                 }.font(.subheadline.weight(.medium)).frame(minHeight: 44)
             }.accessibilityIdentifier("liveProjectPicker")
@@ -79,13 +76,13 @@ struct LiveDashboardView: View {
             HStack {
                 Text(store.spending.map { $0.period != DashboardStore.billingPeriod() } == true ? "Last loaded month" : "This month").font(.headline)
                 Spacer()
-                Text(store.spending?.period ?? DashboardStore.billingPeriod()).font(.subheadline).foregroundStyle(.secondary)
+                Text(BillingSummary.monthLabel(store.spending?.period ?? DashboardStore.billingPeriod())).font(.subheadline).foregroundStyle(.secondary)
             }
             if let snapshot = store.spending {
                 let values = BillingSummary.totals(snapshot.items, project: store.projectID)
                 if values.isEmpty { Text("No consumption reported for this selection.").foregroundStyle(.secondary) }
                 ForEach(values) { value in
-                    Text("\(value.amount.formatted(.currency(code: value.currency))) \(value.currency)")
+                    Text(value.amount.formatted(.currency(code: value.currency)))
                         .font(.system(size: amountSize, weight: .semibold)).monospacedDigit()
                         .accessibilityIdentifier("liveSpendingTotal").fixedSize(horizontal: false, vertical: true)
                 }
@@ -101,8 +98,10 @@ struct LiveDashboardView: View {
                 }
             } else if let error = store.spendingError {
                 InlineFailure(message: error, lastSuccess: nil) { Task { await store.refresh() } }
-                Text("Required: BillingReadOnly at organization scope.").font(.footnote).foregroundStyle(.secondary)
-            } else { placeholders }
+                if error == APIError.forbidden.localizedDescription {
+                    Text("Required: BillingReadOnly at organization scope.").font(.footnote).foregroundStyle(.secondary)
+                }
+            } else { spendingPlaceholder }
         }
     }
     private var fleetSummary: some View {
@@ -126,7 +125,7 @@ struct LiveDashboardView: View {
                 Text("\(store.zone.isEmpty ? "All zones" : store.zone) · \(store.statusFilter.isEmpty ? "Any status" : store.statusFilter.capitalized)")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            if store.zoneUpdatedAt.isEmpty && store.busy { placeholders }
+            if store.zoneUpdatedAt.isEmpty && store.busy { instancePlaceholder }
             else {
                 if store.zoneUpdatedAt.isEmpty || (!overview && !store.zone.isEmpty && store.failedZones[store.zone] != nil && store.zoneUpdatedAt[store.zone] == nil) {
                     Text("Instance count unavailable").foregroundStyle(.secondary)
@@ -135,9 +134,17 @@ struct LiveDashboardView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 if items.isEmpty {
-                    Text(store.failedZones.isEmpty ? "No matching Instances." : "No Instances available from the zones successfully checked.")
-                        .padding(.vertical, 16).foregroundStyle(.secondary)
-                    if !overview { Button("Clear filters") { resetFilters() }.frame(minHeight: 44) }
+                    let filtered = !store.projectID.isEmpty || (!overview && (!store.search.isEmpty || !store.statusFilter.isEmpty || !store.zone.isEmpty))
+                    ContentUnavailableView {
+                        Label(filtered ? "No matching Instances" : "No Instances", systemImage: filtered ? "magnifyingglass" : "server.rack")
+                    } description: {
+                        Text(!store.failedZones.isEmpty ? "No Instances available from the zones successfully checked."
+                             : filtered ? "Try a different search or filter."
+                             : "None found in the \(store.successfulZones.count) zones checked.")
+                    } actions: {
+                        if filtered { Button("Clear filters") { resetFilters() } }
+                    }
+                    .accessibilityIdentifier("instancesEmpty")
                 }
                 LazyVStack(spacing: 0) {
                     ForEach(Array(items.prefix(overview ? 2 : items.count))) { instance in
@@ -190,12 +197,24 @@ struct LiveDashboardView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { filters = false } } }
         }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
     }
-    private var placeholders: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Loading cloud data").font(.subheadline).foregroundStyle(.secondary)
-            RoundedRectangle(cornerRadius: 8).fill(palette.line).frame(width: 160, height: 40)
-            RoundedRectangle(cornerRadius: 4).fill(palette.line).frame(height: 16)
-        }.accessibilityLabel("Loading cloud data")
+    private var spendingPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(Decimal(string: "123.45")!.formatted(.currency(code: "EUR"))).font(.system(size: amountSize, weight: .semibold))
+            Text("Estimated consumption · excl. tax").font(.footnote)
+            ConsumptionStrip(amounts: [3, 1, 1]).padding(.vertical, 4)
+        }
+        .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore).accessibilityLabel("Loading spending")
+    }
+    private var instancePlaceholder: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<2, id: \.self) { _ in
+                CloudInstanceRow(name: "instance-name", subtitle: "DEV1-S · fr-par-1", status: "Running")
+                Divider().overlay(palette.line)
+            }
+        }
+        .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore).accessibilityLabel("Loading Instances")
     }
 }
 
@@ -216,7 +235,7 @@ private struct LiveInstanceDetail: View {
                     .foregroundStyle(store.isZoneStale(current.zone) ? Theme.muted : (current.state == "running" ? Theme.success : Theme.ink))
                 LabeledContent("Type", value: current.type)
                 LabeledContent("Zone", value: current.zone)
-                LabeledContent("Project", value: current.project)
+                LabeledContent("Project", value: store.projectName(current.project))
             } header: { Text("Instance") }
             Section("Instance ID") {
                 Text(current.id).font(.footnote.monospaced()).textSelection(.enabled)

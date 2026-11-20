@@ -18,6 +18,17 @@ struct MonthlyAmount: Identifiable {
     var id: String { period }
 }
 enum BillingSummary {
+    /// "2026-11" → "Nov 2026" (or "Nov" when short), ordered for the user's locale.
+    static func monthLabel(_ period: String, short: Bool = false, locale: Locale = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM"
+        guard let date = formatter.date(from: period) else { return period }
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate(short ? "MMM" : "MMMyyyy")
+        return formatter.string(from: date)
+    }
     static func categories(_ items: [Consumption], project: String = "") -> [CategoryAmount] {
         let filtered = items.filter { project.isEmpty || $0.projectID == project }
         let currencies = Dictionary(grouping: filtered, by: { $0.value.currency })

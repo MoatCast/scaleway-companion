@@ -17,7 +17,7 @@ final class DashboardRefinementTests: XCTestCase {
         XCTAssertNotNil(store.failedZones["nl-ams-2"])
         XCTAssertEqual(store.instances.map(\.zone), ["it-mil-1"])
         let peak = await api.peak
-        XCTAssertLessThanOrEqual(peak, 3)
+        XCTAssertLessThanOrEqual(peak, DashboardStore.zoneConcurrency)
         store.search = "worker"
         XCTAssertEqual(store.visibleInstances.count, 1)
         store.statusFilter = "stopped"
@@ -72,6 +72,41 @@ final class DashboardRefinementTests: XCTestCase {
         await store.loadHistory(force: true)
         XCTAssertNil(store.historyErrors["2026-11"])
         XCTAssertNil(store.spendingError)
+    }
+
+    func testMonthLabelsFollowLocaleInsteadOfRawPeriods() {
+        let english = Locale(identifier: "en_GB")
+        XCTAssertEqual(BillingSummary.monthLabel("2026-11", locale: english), "Nov 2026")
+        XCTAssertEqual(BillingSummary.monthLabel("2026-11", short: true, locale: english), "Nov")
+        XCTAssertEqual(BillingSummary.monthLabel("not-a-period", locale: english), "not-a-period")
+    }
+
+    func testForegroundResumeRefreshesOnlyStaleData() async {
+        let api = CountingService()
+        let clock = TestClock()
+        let store = DashboardStore(api: api, vault: MemoryVault(), now: { clock.now })
+        await store.connect(secret: "fixture", organization: org)
+        let afterConnect = await api.spendingCalls
+        clock.now += 60
+        await store.resume()
+        let afterFreshResume = await api.spendingCalls
+        XCTAssertEqual(afterFreshResume, afterConnect)
+        clock.now += 600
+        await store.resume()
+        let afterStaleResume = await api.spendingCalls
+        XCTAssertEqual(afterStaleResume, afterConnect + 1)
+    }
+
+    func testForcedHistoryRefreshSkipsSettledMonths() async {
+        let api = CountingService()
+        let now = Date(timeIntervalSince1970: 1793786400)
+        let store = DashboardStore(api: api, vault: MemoryVault(), now: { now })
+        await store.connect(secret: "fixture", organization: org)
+        await store.loadHistory()
+        await api.resetPeriods()
+        await store.loadHistory(force: true)
+        let refetched = await api.periods
+        XCTAssertEqual(Set(refetched), ["2026-10"])  // current month is fresh from connect; older months are settled
     }
 
     func testCancelledHistoryDoesNotCreateNetworkErrors() async {
@@ -155,6 +190,19 @@ actor RefinementService: CloudService {
         return SpendingSnapshot(items: try JSONDecoder().decode([Consumption].self, from: Data(json.utf8)), updatedAt: nil, period: period)
     }
 }
+
+actor CountingService: CloudService {
+    var spendingCalls = 0
+    var periods: [String] = []
+    func resetPeriods() { periods = [] }
+    func instances(credentials: APICredentials, zone: String) async throws -> [LiveInstance] { [] }
+    func spending(credentials: APICredentials, period: String) async throws -> SpendingSnapshot {
+        spendingCalls += 1; periods.append(period)
+        return SpendingSnapshot(items: [], updatedAt: nil, period: period)
+    }
+}
+
+final class TestClock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 1793786400) }
 
 actor SuspendedHistoryService: CloudService {
     var started = false

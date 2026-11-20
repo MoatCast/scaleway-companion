@@ -41,7 +41,8 @@ final class DashboardStore: ObservableObject {
     private let now: @Sendable () -> Date
     var organization: String? { credentials?.organization }
     var organizationName: String? { credentials?.organizationName }
-    var projectNames: [String]? { credentials?.projectNames }
+    var projectNames: [String]? { credentials?.projects.map { $0.values.sorted { $0.localizedStandardCompare($1) == .orderedAscending } } }
+    func projectName(_ id: String) -> String { credentials?.projects?[id] ?? id }
     var connectedAt: Date? { credentials?.connectedAt }
     var periods: [String] { Self.billingPeriods(now: now()) }
     var projects: [String] {
@@ -88,17 +89,25 @@ final class DashboardStore: ObservableObject {
         let month = calendar.dateInterval(of: .month, for: now)!.start
         return (-5...0).map { billingPeriod(now: calendar.date(byAdding: .month, value: $0, to: month)!) }
     }
+    private var restoreFailed = false
     func restore() async {
         let attempt = generation
         do {
             let saved = try await vault.load()
             guard generation == attempt else { return }
-            credentials = saved; connected = saved != nil; restoring = false
+            credentials = saved; connected = saved != nil; restoring = false; restoreFailed = false
             if saved != nil { await refresh() }
         } catch {
             guard generation == attempt else { return }
-            restoring = false; connectionError = APIError.keychain.localizedDescription
+            restoring = false; restoreFailed = true; connectionError = APIError.keychain.localizedDescription
         }
+    }
+    /// Called when the app returns to the foreground: retry a failed Keychain read, refresh data older than `maxAge`.
+    func resume(maxAge: TimeInterval = 300) async {
+        if restoreFailed { await restore(); return }
+        guard connected, !busy else { return }
+        if let refreshedAt, now().timeIntervalSince(refreshedAt) < maxAge { return }
+        await refresh()
     }
     func connect(secret: String, organization: String) async {
         guard !busy, !connected else { return }
@@ -186,9 +195,10 @@ final class DashboardStore: ObservableObject {
         let attempt = generation
         historyBusy = true
         let api = self.api
+        let recent = Set(periods.suffix(2))
         let missing = periods.filter { period in
             let currentIsFresh = period == spending?.period && historyErrors[period] == nil
-            return !currentIsFresh && (force || history[period] == nil || historyErrors[period] != nil)
+            return !currentIsFresh && ((force && recent.contains(period)) || history[period] == nil || historyErrors[period] != nil)
         }
         for start in stride(from: 0, to: missing.count, by: 3) {
             let chunk = Array(missing[start..<min(start + 3, missing.count)])
@@ -230,15 +240,17 @@ final class DashboardStore: ObservableObject {
         } catch { connectionError = APIError.keychain.localizedDescription }
         busy = false
     }
+    nonisolated static let zoneConcurrency = 4
     private nonisolated static func fetchZones(api: any CloudService, credentials: APICredentials) async -> [String: Result<[LiveInstance], APIError>] {
         var results: [String: Result<[LiveInstance], APIError>] = [:]
-        for start in stride(from: 0, to: CloudAPI.zones.count, by: 3) {
-            if Task.isCancelled { break }
-            let zones = Array(CloudAPI.zones[start..<min(start + 3, CloudAPI.zones.count)])
-            await withTaskGroup(of: (String, Result<[LiveInstance], APIError>).self) { group in
-                for zone in zones { group.addTask { (zone, await capture { try await api.instances(credentials: credentials, zone: zone) }) } }
-                for await (zone, result) in group { results[zone] = result }
+        var pending = CloudAPI.zones[...]
+        await withTaskGroup(of: (String, Result<[LiveInstance], APIError>).self) { group in
+            func next() {
+                guard !Task.isCancelled, let zone = pending.popFirst() else { return }
+                group.addTask { (zone, await capture { try await api.instances(credentials: credentials, zone: zone) }) }
             }
+            for _ in 0..<zoneConcurrency { next() }
+            for await (zone, result) in group { results[zone] = result; next() }
         }
         return results
     }

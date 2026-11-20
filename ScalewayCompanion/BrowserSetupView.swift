@@ -98,7 +98,7 @@ struct BrowserSetupView: View {
                 }
                 status
                 if setup.cleanupWarning {
-                    Section { Text("Cleanup could not be confirmed. Your previous connection is preserved. Use the unfinished-setup record above to identify and remove only this attempt’s resources in Scaleway.").foregroundStyle(.orange) }
+                    Section { Label("Cleanup could not be confirmed. Your previous connection is preserved. Use the unfinished-setup record above to identify and remove only this attempt’s resources in Scaleway.", systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger) }
                 }
                 if !working {
                     Section {
@@ -131,9 +131,9 @@ struct BrowserSetupView: View {
         if browser.busy {
             Section { HStack { ProgressView(); Text(browser.phase == .verifying ? "Verifying sign-in…" : "Complete sign-in on Scaleway’s website…") } }
         } else if case .failed(let message) = browser.phase {
-            Section { Text(message).foregroundStyle(.orange) }
+            Section { Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger) }
         } else if browser.phase == .timedOut {
-            Section { Text("Sign-in timed out. No connection was changed.").foregroundStyle(.orange) }
+            Section { Label("Sign-in timed out. No connection was changed.", systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger) }
         } else if browser.phase == .cancelled && setup.phase == .idle {
             Section { Text("Sign-in cancelled.").foregroundStyle(.secondary) }
         }
@@ -143,7 +143,7 @@ struct BrowserSetupView: View {
         case .verifying: Section { HStack { ProgressView(); Text("Verifying read access…") }; Text("New permissions may take about a minute to apply.").font(.footnote).foregroundStyle(.secondary) }
         case .saving: Section { HStack { ProgressView(); Text("Saving securely on this iPhone…") } }
         case .cleaning: Section { HStack { ProgressView(); Text("Cleaning up this attempt…") } }
-        case .failed(let message): Section { Text(message).foregroundStyle(.orange).accessibilityIdentifier("automaticSetupError") }
+        case .failed(let message): Section { Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger).accessibilityIdentifier("automaticSetupError") }
         case .cancelled: Section { Text("Setup cancelled. Your previous connection is preserved.").foregroundStyle(.secondary) }
         case .connected: Section { Label("Read-only connection ready", systemImage: "checkmark.shield") }
         case .idle, .choosing: EmptyView()

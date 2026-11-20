@@ -12,7 +12,7 @@ struct SpendingHistoryView: View {
         VStack(alignment: .leading, spacing: 16) {
             Picker("Billing month", selection: $store.selectedPeriod) {
                 ForEach(store.periods.reversed(), id: \.self) { period in
-                    Text(monthLabel(period)).tag(period)
+                    Text(BillingSummary.monthLabel(period)).tag(period)
                 }
             }.pickerStyle(.menu).frame(minHeight: 44)
             if let snapshot = store.selectedSpending {
@@ -20,7 +20,7 @@ struct SpendingHistoryView: View {
                 Text("Estimated consumption").font(.subheadline).foregroundStyle(Theme.muted)
                 if amounts.isEmpty { Text("No consumption reported for this selection.").foregroundStyle(Theme.muted) }
                 ForEach(amounts) { amount in
-                    Text("\(amount.amount.formatted(.currency(code: amount.currency))) \(amount.currency)")
+                    Text(amount.amount.formatted(.currency(code: amount.currency)))
                         .font(.system(size: amountSize, weight: .semibold)).monospacedDigit().fixedSize(horizontal: false, vertical: true)
                 }
                 if let error = store.historyErrors[store.selectedPeriod] {
@@ -41,7 +41,7 @@ struct SpendingHistoryView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(category.category.replacingOccurrences(of: "_", with: " ").capitalized)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("\(category.amount.formatted(.currency(code: category.currency))) \(category.currency)")
+                        Text(category.amount.formatted(.currency(code: category.currency)))
                             .monospacedDigit().multilineTextAlignment(.trailing)
                     }.font(.body).padding(.vertical, 10)
                     Divider()
@@ -69,15 +69,15 @@ struct SpendingHistoryView: View {
                 if let amount = point.amount {
                     BarMark(x: .value("Month", point.period), y: .value(currency, NSDecimalNumber(decimal: amount).doubleValue))
                         .foregroundStyle(point.period == store.periods.last ? palette.accent : palette.accent.opacity(0.25))
-                        .accessibilityLabel(monthLabel(point.period))
-                        .accessibilityValue("\(amount.formatted(.currency(code: currency))) \(currency)")
+                        .accessibilityLabel(BillingSummary.monthLabel(point.period))
+                        .accessibilityValue(amount.formatted(.currency(code: currency)))
                 }
             }
             .chartXScale(domain: store.periods)
             .chartXAxis {
                 AxisMarks { value in
                     AxisValueLabel {
-                        if let period = value.as(String.self) { Text(monthLabel(period, short: true)) }
+                        if let period = value.as(String.self) { Text(BillingSummary.monthLabel(period, short: true)) }
                     }
                 }
             }
@@ -92,12 +92,12 @@ struct SpendingHistoryView: View {
                 }
             }
             .frame(height: 200)
-            Text("\(currency) · \(monthLabel(store.periods.last ?? "")) is month-to-date. Missing months have no bar.")
+            Text("\(currency) · \(BillingSummary.monthLabel(store.periods.last ?? "")) is month-to-date. Missing months have no bar.")
                 .font(.caption).foregroundStyle(Theme.muted)
             DisclosureGroup("Monthly amounts") {
                 ForEach(points) { point in
                     HStack {
-                        Text(monthLabel(point.period))
+                        Text(BillingSummary.monthLabel(point.period))
                         Spacer()
                         if let amount = point.amount {
                             Text(amount.formatted(.currency(code: currency))).monospacedDigit()
@@ -115,16 +115,6 @@ struct SpendingHistoryView: View {
             Button("Retry history") { Task { await store.loadHistory(force: true) } }
                 .disabled(store.historyBusy || store.busy).frame(minHeight: 44)
         }
-    }
-    private func monthLabel(_ period: String, short: Bool = false) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM"
-        guard let date = formatter.date(from: period) else { return period }
-        formatter.locale = .current
-        formatter.dateFormat = short ? "MMM" : "MMM yyyy"
-        return formatter.string(from: date)
     }
     private func timestamp(_ string: String) -> String {
         let formatter = ISO8601DateFormatter()

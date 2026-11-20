@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @StateObject private var store = DashboardStore()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var demo = ProcessInfo.processInfo.arguments.contains("--demo")
     var body: some View {
         Group {
@@ -17,6 +18,9 @@ struct DashboardView: View {
             }
         }
         .task(id: demo) { if !demo && store.restoring { await store.restore() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && !demo { Task { await store.resume() } }
+        }
     }
 }
 
@@ -70,7 +74,7 @@ struct ConnectionView: View {
                     .disabled(store.busy)
                 }
                 if let error = store.connectionError {
-                    Section { Text(error).foregroundStyle(.orange).accessibilityIdentifier("connectionError") }
+                    Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger).accessibilityIdentifier("connectionError") }
                 }
                 Section {
                     NavigationLink { AppearanceView() } label: {
