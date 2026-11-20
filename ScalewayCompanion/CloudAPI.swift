@@ -67,7 +67,19 @@ struct Consumption: Decodable, Sendable {
     let value: APIMoney
     let projectID: String
     let category: String
-    enum CodingKeys: String, CodingKey { case value, projectID = "project_id", category = "category_name" }
+    let resourceName: String
+    let productName: String
+    enum CodingKeys: String, CodingKey {
+        case value, projectID = "project_id", category = "category_name", resourceName = "resource_name", productName = "product_name"
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        value = try c.decode(APIMoney.self, forKey: .value)
+        projectID = try c.decode(String.self, forKey: .projectID)
+        category = try c.decode(String.self, forKey: .category)
+        resourceName = try c.decodeIfPresent(String.self, forKey: .resourceName) ?? ""
+        productName = try c.decodeIfPresent(String.self, forKey: .productName) ?? ""
+    }
 }
 struct SpendingSnapshot: Sendable {
     let items: [Consumption]

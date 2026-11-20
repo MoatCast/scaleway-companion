@@ -74,6 +74,29 @@ final class DashboardRefinementTests: XCTestCase {
         XCTAssertNil(store.spendingError)
     }
 
+    func testResourcesGroupByNameAndCurrencyLargestFirst() throws {
+        let json = #"""
+        [{"value":{"currency_code":"EUR","units":1,"nanos":0},"project_id":"p","category_name":"Compute","resource_name":"api-prod","product_name":"Instances"},
+         {"value":{"currency_code":"EUR","units":2,"nanos":0},"project_id":"p","category_name":"Compute","resource_name":"api-prod","product_name":"Instances"},
+         {"value":{"currency_code":"EUR","units":5,"nanos":0},"project_id":"p","category_name":"Storage","resource_name":"db","product_name":"Databases"},
+         {"value":{"currency_code":"USD","units":4,"nanos":0},"project_id":"p","category_name":"Compute","resource_name":"api-prod","product_name":"Instances"},
+         {"value":{"currency_code":"EUR","units":0,"nanos":500000000},"project_id":"p","category_name":"Network"}]
+        """#
+        let items = try JSONDecoder().decode([Consumption].self, from: Data(json.utf8))
+        let resources = BillingSummary.resources(items)
+        XCTAssertEqual(resources.map(\.name), ["db", "api-prod", "api-prod", "Other"])
+        XCTAssertEqual(resources.first { $0.name == "api-prod" && $0.currency == "EUR" }?.amount, 3)
+        XCTAssertEqual(resources.first { $0.name == "db" }?.product, "Databases")
+        XCTAssertEqual(BillingSummary.resources(items, project: "other").count, 0)
+    }
+
+    func testOlderConsumptionJSONWithoutResourceFieldsStillDecodes() throws {
+        let json = #"[{"value":{"currency_code":"EUR","units":1,"nanos":0},"project_id":"p","category_name":"Compute"}]"#
+        let items = try JSONDecoder().decode([Consumption].self, from: Data(json.utf8))
+        XCTAssertEqual(items.first?.resourceName, "")
+        XCTAssertEqual(items.first?.productName, "")
+    }
+
     func testMonthLabelsFollowLocaleInsteadOfRawPeriods() {
         let english = Locale(identifier: "en_GB")
         XCTAssertEqual(BillingSummary.monthLabel("2026-11", locale: english), "Nov 2026")

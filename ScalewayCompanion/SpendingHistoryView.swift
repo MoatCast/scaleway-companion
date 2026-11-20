@@ -46,6 +46,20 @@ struct SpendingHistoryView: View {
                     }.font(.body).padding(.vertical, 10)
                     Divider()
                 }
+                let resources = BillingSummary.resources(snapshot.items, project: store.projectID)
+                if !resources.isEmpty {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Top resources").font(.title2.bold())
+                        Spacer()
+                        Text(BillingSummary.monthLabel(snapshot.period)).font(.subheadline).foregroundStyle(Theme.muted)
+                    }.padding(.top, 12)
+                    ForEach(resources.prefix(5)) { ResourceRow(resource: $0) }
+                    if resources.count > 5 {
+                        DisclosureGroup("All resources (\(resources.count))") {
+                            ForEach(resources.dropFirst(5)) { ResourceRow(resource: $0) }
+                        }.font(.subheadline).tint(palette.accent).frame(minHeight: 44)
+                    }
+                }
             }
             Text("Estimated consumption, excluding tax. Charges can be delayed. Discounts and credits are not deducted here; this is not a final invoice.")
                 .font(.footnote).foregroundStyle(Theme.muted)
@@ -122,5 +136,22 @@ struct SpendingHistoryView: View {
         var date = formatter.date(from: string)
         if date == nil { formatter.formatOptions = [.withInternetDateTime]; date = formatter.date(from: string) }
         return date?.formatted(date: .abbreviated, time: .shortened) ?? string
+    }
+}
+
+private struct ResourceRow: View {
+    let resource: ResourceAmount
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(resource.name).lineLimit(1).truncationMode(.middle)
+                if !resource.product.isEmpty { Text(resource.product).font(.footnote).foregroundStyle(Theme.muted) }
+            }
+            Spacer(minLength: 8)
+            Text(resource.amount.formatted(.currency(code: resource.currency))).monospacedDigit()
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
